@@ -39,9 +39,9 @@ class IsotropicGaussian(nn.Module, Sampleable):
         # Will automatically be moved when self.to(...) is called...
 
     def sample(self, num_samples: int) -> Tuple[torch.Tensor, None]:
-        return self.std * torch.randn(num_samples, *self.shape).to(
-            self.dummy.device
-        ), None
+        samples = self.std * torch.randn(num_samples, *self.shape).to(self.dummy.device)
+        labels = None
+        return samples, labels
 
 
 class MNISTSampler(nn.Module, Sampleable):

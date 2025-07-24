@@ -91,9 +91,8 @@ class ResidualLayer(nn.Module):
         x = self.block1(x)  # (bs, c, h, w)
 
         # Add time embedding
-        t_embed = (
-            self.time_adapter(t_embed).unsqueeze(-1).unsqueeze(-1)
-        )  # (bs, c, 1, 1)
+        t_embed = self.time_adapter(t_embed).unsqueeze(-1).unsqueeze(-1)
+        # (bs, c, 1, 1)
         x = x + t_embed
 
         # Add y embedding (conditional embedding)
