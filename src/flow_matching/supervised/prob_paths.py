@@ -3,9 +3,9 @@ from typing import List, Tuple
 import torch
 from torch import nn
 
-from flow_matching.supervised.densities import IsotropicGaussian
+from flow_matching.supervised.samplers import IsotropicGaussian
 from flow_matching.supervised.alphas_betas import Alpha, Beta
-from flow_matching.supervised.densities import Sampleable
+from flow_matching.supervised.samplers import Sampleable
 
 
 class ConditionalProbabilityPath(nn.Module, ABC):

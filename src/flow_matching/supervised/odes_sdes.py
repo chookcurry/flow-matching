@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 import torch
 
-from flow_matching.supervised.model import ConditionalVectorField
+from flow_matching.supervised.models import ConditionalVectorField
 
 
 class ODE(ABC):
