@@ -70,12 +70,14 @@ class CFGTrainer(Trainer):
         path: ConditionalProbabilityPath,
         model: ConditionalVectorField,
         eta: float,
+        null_class: int,
         **kwargs: Any,
     ):
         assert eta > 0 and eta < 1
         super().__init__(model, **kwargs)
         self.eta = eta
         self.path = path
+        self.null_class = null_class
 
     def get_train_loss(self, batch_size: int) -> torch.Tensor:
         # Step 1: Sample z,y from p_data
@@ -84,7 +86,7 @@ class CFGTrainer(Trainer):
 
         # Step 2: Set each label to 10 (i.e., null) with probability eta
         mask = torch.rand(batch_size) < self.eta
-        batch_y[mask] = 10  # Set to null label
+        batch_y[mask] = self.null_class  # Set to null label
 
         # Step 3: Sample t and x
         batch_t = torch.rand(batch_size, 1, 1, 1)

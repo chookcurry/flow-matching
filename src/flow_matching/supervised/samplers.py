@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
+import random
 from typing import List, Optional, Tuple
 import torch
 from torch import nn
 from torchvision import datasets, transforms  # type: ignore
+from whar_datasets.adapters.pytorch import PytorchAdapter
+from whar_datasets.support.getter import WHARDatasetID, get_whar_cfg
 
 
 class Sampleable(ABC):
@@ -87,3 +90,46 @@ class MNISTSampler(nn.Module, Sampleable):
         labels_stack = torch.tensor(labels, dtype=torch.int64).to(self.dummy.device)
 
         return samples_stack, labels_stack
+
+
+class WHARSampler(nn.Module, Sampleable):
+    """
+    Sampleable wrapper for the MNIST dataset
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.cfg = get_whar_cfg(WHARDatasetID.WISDM)
+        self.dataset = PytorchAdapter(self.cfg, override_cache=False)
+        self.train_loader, self.val_loader, self.test_loader = (
+            self.dataset.get_dataloaders(
+                train_batch_size=32, scv_group_index=2, override_cache=False
+            )
+        )
+
+        self.dummy = nn.Buffer(torch.zeros(1))
+        # Will automatically be moved when self.to(...) is called...
+
+    def sample(self, num_samples: int) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        # get random entry of train loader
+
+        random.seed(self.cfg.seed)
+        indices = self.dataset.train_indices.copy()
+        random.shuffle(indices)
+
+        indices = indices[:num_samples]
+        samples = [self.dataset[i] for i in indices]
+
+        y = [sample[0] for sample in samples]
+        grid = [sample[2] for sample in samples]
+
+        y_stack = torch.stack(y).to(self.dummy.device)
+        grid_stack = torch.stack(grid).to(self.dummy.device)
+
+        return grid_stack, y_stack
+
+    def get_shape(self) -> List[int]:
+        return [*self.dataset[0][2].shape]
+
+    def get_lengths(self) -> List[List[int]]:
+        return self.dataset[0][3].int().numpy().tolist()
