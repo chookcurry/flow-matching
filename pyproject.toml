@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
+    "aim>=3.29.1",
     "ipykernel>=6.29.5",
     "matplotlib>=3.10.3",
     "scikit-learn>=1.7.0",

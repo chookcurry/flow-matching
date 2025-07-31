@@ -99,7 +99,7 @@ class WHARSampler(nn.Module, Sampleable):
 
     def __init__(self):
         super().__init__()
-        self.cfg = get_whar_cfg(WHARDatasetID.WISDM)
+        self.cfg = get_whar_cfg(WHARDatasetID.UCI_HAR)
         self.dataset = PytorchAdapter(self.cfg, override_cache=False)
         self.train_loader, self.val_loader, self.test_loader = (
             self.dataset.get_dataloaders(

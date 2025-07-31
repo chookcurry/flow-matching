@@ -3,6 +3,7 @@ from typing import Any
 import torch
 from tqdm import tqdm
 from torch import nn
+from aim import Run
 
 from flow_matching.supervised.odes_sdes import ConditionalVectorField
 from flow_matching.supervised.prob_paths import ConditionalProbabilityPath
@@ -31,6 +32,7 @@ class Trainer(ABC):
     def __init__(self, model: nn.Module):
         super().__init__()
         self.model = model
+        self.run = Run()
 
     @abstractmethod
     def get_train_loss(self, batch_size: int) -> torch.Tensor:
@@ -53,12 +55,15 @@ class Trainer(ABC):
 
         # Train loop
         pbar = tqdm(range(num_epochs))
-        for idx, epoch in enumerate(pbar):
+        for epoch in pbar:
             opt.zero_grad()
             loss = self.get_train_loss(**kwargs)
+
+            self.run.track(loss.item(), name="loss")
+
             loss.backward()
             opt.step()
-            pbar.set_description(f"Epoch {idx}, loss: {loss.item():.3f}")
+            pbar.set_description(f"Epoch {epoch}, loss: {loss.item():.3f}")
 
         # Finish
         self.model.eval()
@@ -89,7 +94,11 @@ class CFGTrainer(Trainer):
         batch_y[mask] = self.null_class  # Set to null label
 
         # Step 3: Sample t and x
-        batch_t = torch.rand(batch_size, 1, 1, 1)
+        # batch_t = torch.rand(batch_size, 1, 1, 1)
+        mu = 0.0  # logit(0.5)
+        sigma = 0.6  # controls concentration around 0.5
+        logit_t = torch.normal(mean=mu, std=sigma, size=(batch_size, 1, 1, 1))
+        batch_t = torch.sigmoid(logit_t)  # Now t is in [0,1], peaking near 0.5
         batch_x = self.path.sample_conditional_path(batch_z, batch_t)
 
         # Step 4: Regress and output loss
