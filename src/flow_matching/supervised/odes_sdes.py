@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
 
 import torch
-
-from flow_matching.supervised.models import ConditionalVectorField
+from torch import nn
 
 
 class ODE(ABC):
@@ -47,6 +46,26 @@ class SDE(ABC):
             - t: time, shape (bs, 1, 1, 1)
         Returns:
             - diffusion_coefficient: shape (bs, c, h, w)
+        """
+        pass
+
+
+class ConditionalVectorField(nn.Module, ABC):
+    """
+    MLP-parameterization of the learned vector field u_t^theta(x)
+    """
+
+    @abstractmethod
+    def forward(
+        self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Args:
+        - x: (bs, c, h, w)
+        - t: (bs, 1, 1, 1)
+        - y: (bs,)
+        Returns:
+        - u_t^theta(x|y): (bs, c, h, w)
         """
         pass
 
