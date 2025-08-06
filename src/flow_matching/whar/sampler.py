@@ -22,14 +22,25 @@ class WHARSampler(nn.Module, Sampleable):
             )
         )
 
+        # Build a mapping from class -> list of indices for fast sampling
+        self.class_to_indices = {}
+        for idx, (_, label) in enumerate(self.train_loader):  # type: ignore
+            self.class_to_indices.setdefault(label, []).append(idx)
+
         self.dummy = nn.Buffer(torch.zeros(1))
         # Will automatically be moved when self.to(...) is called...
 
-    def sample(self, num_samples: int) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    def sample(
+        self, num_samples: int, class_label: int | None = None
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # get random entry of train loader
 
         random.seed(self.cfg.seed)
-        indices = self.dataset.train_indices.copy()
+        indices = (
+            self.dataset.train_indices.copy()
+            if class_label is None
+            else self.class_to_indices.get(class_label, [])
+        )
         random.shuffle(indices)
 
         indices = indices[:num_samples]

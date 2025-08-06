@@ -10,7 +10,9 @@ class Sampleable(ABC):
     """
 
     @abstractmethod
-    def sample(self, num_samples: int) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    def sample(
+        self, num_samples: int, class_label: int | None = None
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Args:
             - num_samples: the desired number of samples
@@ -37,7 +39,9 @@ class IsotropicGaussian(nn.Module, Sampleable):
         self.dummy = nn.Buffer(torch.zeros(1))
         # Will automatically be moved when self.to(...) is called...
 
-    def sample(self, num_samples: int) -> Tuple[torch.Tensor, None]:
+    def sample(
+        self, num_samples: int, class_label: int | None = None
+    ) -> Tuple[torch.Tensor, None]:
         samples = self.std * torch.randn(num_samples, *self.shape).to(self.dummy.device)
         labels = None
         return samples, labels
