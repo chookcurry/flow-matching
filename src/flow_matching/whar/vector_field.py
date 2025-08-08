@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from flow_matching.mnist.unet import FourierEncoder
+from flow_matching.mnist.vector_field import FourierEncoder
 from flow_matching.supervised.odes_sdes import ConditionalVectorField
 
 

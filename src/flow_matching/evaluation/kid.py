@@ -41,6 +41,46 @@ def kernel_inception_distance_polynomial(
     return sum_K_xx + sum_K_yy - 2 * sum_K_xy
 
 
+def kernel_inception_distance_polynomial_biased(
+    x: torch.Tensor, y: torch.Tensor, degree=3
+) -> torch.Tensor:
+    """
+    Compute KID using a polynomial kernel: K(x, y) = (xᵀy / d + 1)^degree
+
+    Args:
+        x (torch.Tensor): Generated features (B, C, H, W) or (B, D)
+        y (torch.Tensor): Real features (B, C, H, W) or (B, D)
+        degree (int): Degree of the polynomial kernel
+
+    Returns:
+        torch.Tensor: KID estimate using polynomial kernel
+    """
+    B = x.size(0)
+    assert x.shape == y.shape, "x and y must have the same shape"
+
+    # Flatten spatial dimensions
+    x = x.view(B, -1)
+    y = y.view(B, -1)
+    d = x.size(1)
+
+    # Compute dot products
+    xx = (x @ x.t()) / d + 1
+    yy = (y @ y.t()) / d + 1
+    xy = (x @ y.t()) / d + 1
+
+    # Apply polynomial kernel
+    K_xx = xx.pow(degree)
+    K_yy = yy.pow(degree)
+    K_xy = xy.pow(degree)
+
+    # Remove diagonals (unbiased estimate)
+    sum_K_xx = K_xx.sum() / (B * B)
+    sum_K_yy = K_yy.sum() / (B * B)
+    sum_K_xy = K_xy.sum() / (B * B)
+
+    return sum_K_xx + sum_K_yy - 2 * sum_K_xy
+
+
 def kernel_inception_distance_rbf(x: torch.Tensor, y: torch.Tensor, alpha=0.001):
     """
     Compute Kernel Inception Distance (KID) using an RBF kernel.

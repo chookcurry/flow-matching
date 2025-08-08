@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Callable
 import torch
 from tqdm import tqdm
-from torch import nn
+from torch import Tensor, nn
 from aim import Run
 
 from flow_matching.supervised.odes_sdes import ConditionalVectorField
@@ -13,13 +13,6 @@ MiB = 1024**2
 
 
 def model_size_b(model: nn.Module) -> int:
-    """
-    Returns model size in bytes. Based on https://discuss.pytorch.org/t/finding-model-size/130275/2
-    Args:
-    - model: self-explanatory
-    Returns:
-    - size: model size in bytes
-    """
     size = 0
     for param in model.parameters():
         size += param.nelement() * param.element_size()
@@ -28,14 +21,26 @@ def model_size_b(model: nn.Module) -> int:
     return size
 
 
+def sample_time_uniform(batch_size: int) -> torch.Tensor:
+    return torch.rand(batch_size, 1, 1, 1)
+
+
+def sample_time_logit_normal(batch_size: int) -> torch.Tensor:
+    return torch.sigmoid(torch.normal(0.0, 0.6, size=(batch_size, 1, 1, 1)))
+
+
 class Trainer(ABC):
-    def __init__(self, model: nn.Module):
+    def __init__(self, model: nn.Module, track: bool = False):
         super().__init__()
         self.model = model
-        self.run = Run()
+        self.run = (
+            Run(log_system_params=False, system_tracking_interval=None)
+            if track
+            else None
+        )
 
     @abstractmethod
-    def get_train_loss(self, batch_size: int) -> torch.Tensor:
+    def get_train_loss(self, batch_size: int) -> Tensor:
         pass
 
     def get_optimizer(self, lr: float):
@@ -50,55 +55,56 @@ class Trainer(ABC):
 
         # Start
         self.model.to(device)
-        opt = self.get_optimizer(lr)
+        optimizer = self.get_optimizer(lr)
         self.model.train()
 
         # Train loop
         pbar = tqdm(range(num_epochs))
         for epoch in pbar:
-            opt.zero_grad()
+            optimizer.zero_grad()
             loss = self.get_train_loss(**kwargs)
 
-            self.run.track(loss.item(), name="loss")
+            if self.run:
+                self.run.track(loss.item(), name="loss")
 
             loss.backward()
-            opt.step()
+            optimizer.step()
             pbar.set_description(f"Epoch {epoch}, loss: {loss.item():.3f}")
 
         # Finish
         self.model.eval()
 
 
-class CFGTrainer(Trainer):
+class FlowTrainer(Trainer):
     def __init__(
         self,
         path: ConditionalProbabilityPath,
         model: ConditionalVectorField,
         eta: float,
         null_class: int,
-        **kwargs: Any,
+        track: bool = False,
+        sample_time: Callable[[int], Tensor] = sample_time_logit_normal,
     ):
+        super().__init__(model, track)
+
         assert eta > 0 and eta < 1
-        super().__init__(model, **kwargs)
+
         self.eta = eta
         self.path = path
         self.null_class = null_class
+        self.sample_time = sample_time
 
-    def get_train_loss(self, batch_size: int) -> torch.Tensor:
+    def get_train_loss(self, batch_size: int) -> Tensor:
         # Step 1: Sample z,y from p_data
         batch_z, batch_y = self.path.p_data.sample(batch_size)
         assert batch_y is not None
 
-        # Step 2: Set each label to 10 (i.e., null) with probability eta
+        # Step 2: Set each label to null class with probability eta
         mask = torch.rand(batch_size) < self.eta
-        batch_y[mask] = self.null_class  # Set to null label
+        batch_y[mask] = self.null_class
 
         # Step 3: Sample t and x
-        # batch_t = torch.rand(batch_size, 1, 1, 1)
-        mu = 0.0  # logit(0.5)
-        sigma = 0.6  # controls concentration around 0.5
-        logit_t = torch.normal(mean=mu, std=sigma, size=(batch_size, 1, 1, 1))
-        batch_t = torch.sigmoid(logit_t)  # Now t is in [0,1], peaking near 0.5
+        batch_t = self.sample_time(batch_size)
         batch_x = self.path.sample_conditional_path(batch_z, batch_t)
 
         # Step 4: Regress and output loss
