@@ -78,7 +78,9 @@ class WHARSamplerRAW(nn.Module, Sampleable):
         super().__init__()
         self.cfg = get_whar_cfg(WHARDatasetID.UCI_HAR)
         self.cfg.transform = None
+
         self.dataset = PytorchAdapter(self.cfg, override_cache=False)
+
         self.train_loader, self.val_loader, self.test_loader = (
             self.dataset.get_dataloaders(
                 train_batch_size=32, scv_group_index=2, override_cache=False
@@ -111,7 +113,6 @@ class WHARSamplerRAW(nn.Module, Sampleable):
         indices = indices[:num_samples]
         samples = [self.dataset[i] for i in indices]
 
-        # unzip samples
         x = [sample[1] for sample in samples]
         y = [sample[0] for sample in samples]
 

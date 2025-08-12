@@ -22,3 +22,23 @@ class VAE(nn.Module, ABC):
     def forward(self, x: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         # recon, mu, logvar
         pass
+
+
+class CondVAE(nn.Module, ABC):
+    def __init__(self):
+        super().__init__()
+
+    @abstractmethod
+    def decode(self, z: Tensor, y: Tensor) -> Tensor:
+        # recon
+        pass
+
+    @abstractmethod
+    def encode(self, x: Tensor, y: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+        # z, mu, logvar
+        pass
+
+    @abstractmethod
+    def forward(self, x: Tensor, y: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+        # recon, mu, logvar
+        pass
