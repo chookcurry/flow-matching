@@ -40,7 +40,7 @@ class Trainer(ABC):
         )
 
     @abstractmethod
-    def get_train_loss(self, batch_size: int) -> Tensor:
+    def get_train_loss(self, **kwargs: Any) -> Tensor:
         pass
 
     def get_optimizer(self, lr: float):
@@ -62,7 +62,7 @@ class Trainer(ABC):
         pbar = tqdm(range(num_epochs))
         for epoch in pbar:
             optimizer.zero_grad()
-            loss = self.get_train_loss(**kwargs)
+            loss = self.get_train_loss(**kwargs, device=device)
 
             if self.run:
                 self.run.track(loss.item(), name="loss")
@@ -94,7 +94,9 @@ class FlowTrainer(Trainer):
         self.null_class = null_class
         self.sample_time = sample_time
 
-    def get_train_loss(self, batch_size: int) -> Tensor:
+    def get_train_loss(self, **kwargs: Any) -> Tensor:
+        batch_size = kwargs["batch_size"]
+
         # Step 1: Sample z,y from p_data
         batch_z, batch_y = self.path.p_data.sample(batch_size)
         assert batch_y is not None

@@ -34,7 +34,7 @@ def istft_transform(
         stft_complex,
         n_fft=n_fft,
         hop_length=hop_length,
-        window=torch.hann_window(n_fft),
+        window=torch.hann_window(n_fft).to(stft_complex.device),
         length=length,
     )  # (channels, time)
 

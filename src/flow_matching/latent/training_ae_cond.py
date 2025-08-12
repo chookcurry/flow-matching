@@ -1,7 +1,7 @@
 from typing import Any, Callable, Tuple
 import torch
 from tqdm import tqdm
-from torch import Tensor
+from torch import Tensor, vmap
 from aim import Run
 from torch.utils.data import DataLoader
 
@@ -81,8 +81,8 @@ class CondAETrainer:
         x = x.detach().cpu()
         recon = recon.detach().cpu()
 
-        x = decompress_stft(x)
-        recon = decompress_stft(recon)
+        x = vmap(decompress_stft)(x)
+        recon = vmap(decompress_stft)(recon)
 
         mse = ae_mse(recon, x)
         log_mag = ae_log_mag(recon, x)

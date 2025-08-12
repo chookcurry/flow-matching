@@ -1,8 +1,8 @@
-from typing import Callable
+from typing import Any, Callable
 
 import torch
 from torch import Tensor
-from flow_matching.latent.vae import VAE
+from flow_matching.latent.ae import CondAutoencoder
 from flow_matching.supervised.odes_sdes import ConditionalVectorField
 from flow_matching.supervised.prob_paths import ConditionalProbabilityPath
 from flow_matching.supervised.training import Trainer, sample_time_logit_normal
@@ -13,7 +13,7 @@ class LatentFlowTrainer(Trainer):
         self,
         path: ConditionalProbabilityPath,
         model: ConditionalVectorField,
-        vae: VAE,
+        ae: CondAutoencoder,
         eta: float,
         null_class: int,
         sample_time: Callable[[int], Tensor] = sample_time_logit_normal,
@@ -23,30 +23,35 @@ class LatentFlowTrainer(Trainer):
         assert eta > 0 and eta < 1
 
         self.path = path
-        self.vae = vae
+        self.ae = ae
         self.eta = eta
         self.null_class = null_class
         self.sample_time = sample_time
 
-        # freeze vae
-        for param in self.vae.parameters():
+        # freeze autoencoder
+        for param in self.ae.parameters():
             param.requires_grad = False
 
-    def get_train_loss(self, batch_size: int) -> torch.Tensor:
+    def get_train_loss(self, **kwargs: Any) -> torch.Tensor:
+        batch_size = kwargs["batch_size"]
+        device = kwargs["device"]
+
         # Step 1: Sample z, y from p_data
         batch_z, batch_y = self.path.p_data.sample(batch_size)
         assert batch_y is not None
 
+        batch_z, batch_y = batch_z.to(device), batch_y.to(device)
+
         # encode z to latent space
         with torch.no_grad():
-            batch_z, _, _ = self.vae.encode(batch_z)
+            batch_z = self.ae.encode(batch_z, batch_y)
 
         # Step 2: Set each label to null class with probability eta
         mask = torch.rand(batch_size) < self.eta
         batch_y[mask] = self.null_class
 
         # Step 3: Sample t and x
-        batch_t = self.sample_time(batch_size)
+        batch_t = self.sample_time(batch_size).to(device)
         batch_x = self.path.sample_conditional_path(batch_z, batch_t)
 
         # Step 4: Regress and output loss
