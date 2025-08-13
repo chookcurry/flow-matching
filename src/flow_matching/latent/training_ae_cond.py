@@ -22,8 +22,10 @@ def default_collate_fn(batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
     for y, x in batch:
         x_transformed = stft_transform(x)
         x_transformed = compress_stft(x_transformed)
+
         C, RI, F, T = x_transformed.shape
         x_transformed = x_transformed.reshape(C * RI, F, T)
+
         transformed_batch.append((x_transformed, y))
 
     x_stack = torch.stack([x for x, _ in transformed_batch])
@@ -65,8 +67,10 @@ class CondAETrainer:
     ) -> Tensor:
         x, y = batch
         x, y = x.to(device), y.to(device)
+
         recon, _ = self.model(x, y)
         loss = self.loss_fn(recon, x)
+
         return loss
 
     def get_val_metrics(
