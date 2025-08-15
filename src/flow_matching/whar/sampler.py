@@ -8,62 +8,6 @@ from typing import List, Optional, Tuple
 from flow_matching.whar.stft import compress_stft, stft_transform
 
 
-class WHARSampler(nn.Module, Sampleable):
-    """
-    Sampleable wrapper for the MNIST dataset
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.cfg = get_whar_cfg(WHARDatasetID.UCI_HAR)
-        self.dataset = PytorchAdapter(self.cfg, override_cache=False)
-        self.train_loader, self.val_loader, self.test_loader = (
-            self.dataset.get_dataloaders(
-                train_batch_size=32, scv_group_index=2, override_cache=False
-            )
-        )
-
-        # Build a mapping from class -> list of indices for fast sampling
-        self.class_to_indices = {}
-        for ds_idx in self.dataset.train_indices:
-            label, _ = self.dataset[ds_idx]
-            label_int = int(label)  # ensure scalar int, not tensor
-            self.class_to_indices.setdefault(label_int, []).append(ds_idx)
-
-        self.dummy = nn.Buffer(torch.zeros(1))
-        # Will automatically be moved when self.to(...) is called...
-
-    def sample(
-        self, num_samples: int, class_label: int | None = None
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        # get random entry of train loader
-
-        random.seed(self.cfg.seed)
-        indices = (
-            self.dataset.train_indices.copy()
-            if class_label is None
-            else self.class_to_indices.get(class_label, [])
-        )
-        random.shuffle(indices)
-
-        indices = indices[:num_samples]
-        samples = [self.dataset[i] for i in indices]
-
-        y = [sample[0] for sample in samples]
-        grid = [sample[2] for sample in samples]
-
-        y_stack = torch.stack(y).to(self.dummy.device)
-        grid_stack = torch.stack(grid).to(self.dummy.device)
-
-        return grid_stack, y_stack
-
-    def get_shape(self) -> List[int]:
-        return [*self.dataset[0][2].shape]
-
-    def get_lengths(self) -> List[List[int]]:
-        return self.dataset[0][3].int().numpy().tolist()
-
-
 def stft_transform_combine(x: torch.Tensor) -> torch.Tensor:
     x = stft_transform(x)
     x = compress_stft(x)
@@ -72,13 +16,13 @@ def stft_transform_combine(x: torch.Tensor) -> torch.Tensor:
     return x
 
 
-class WHARSamplerRAW(nn.Module, Sampleable):
-    """
-    Sampleable wrapper for the MNIST dataset
-    """
-
-    def __init__(self, transform=None):
+class WHARSampler(nn.Module, Sampleable):
+    def __init__(self, transform=stft_transform_combine):
         super().__init__()
+
+        self.transform = transform
+        self.dummy = nn.Buffer(torch.zeros(1))
+
         self.cfg = get_whar_cfg(WHARDatasetID.UCI_HAR)
         self.cfg.transform = None
 
@@ -90,28 +34,47 @@ class WHARSamplerRAW(nn.Module, Sampleable):
             )
         )
 
-        # Build a mapping from class -> list of indices for fast sampling
-        self.class_to_indices = {}
-        for ds_idx in self.dataset.train_indices:
-            label, _ = self.dataset[ds_idx]
-            label_int = int(label)  # ensure scalar int, not tensor
-            self.class_to_indices.setdefault(label_int, []).append(ds_idx)
+        self.map_class_train_indices = {}
+        for i in self.dataset.train_indices:
+            label, _ = self.dataset[i]
+            self.map_class_train_indices.setdefault(int(label), []).append(i)
 
-        self.dummy = nn.Buffer(torch.zeros(1))
-        # Will automatically be moved when self.to(...) is called...
-
-        self.transform = transform
+        self.map_class_val_indices = {}
+        for i in self.dataset.val_indices:
+            label, _ = self.dataset[i]
+            self.map_class_val_indices.setdefault(int(label), []).append(i)
 
     def sample(
         self, num_samples: int, class_label: int | None = None, seed: int | None = None
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        # get random entry of train loader
+        return self.sample_train(num_samples, class_label, seed)
 
-        random.seed(seed or self.cfg.seed)
+    def sample_train(
+        self, num_samples: int, class_label: int | None = None, seed: int | None = None
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        return self.sample_from_indices(
+            self.dataset.train_indices, num_samples, class_label, seed
+        )
+
+    def sample_val(
+        self, num_samples: int, class_label: int | None = None, seed: int | None = None
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        return self.sample_from_indices(
+            self.dataset.val_indices, num_samples, class_label, seed
+        )
+
+    def sample_from_indices(
+        self,
+        indices: List[int],
+        num_samples: int,
+        class_label: int | None = None,
+        seed: int | None = None,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        random.seed(seed)
         indices = (
             self.dataset.train_indices.copy()
             if class_label is None
-            else self.class_to_indices.get(class_label, [])
+            else self.map_class_train_indices.get(class_label, [])
         )
         random.shuffle(indices)
 
