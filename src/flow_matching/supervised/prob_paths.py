@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Tuple
-import torch
-from torch import Tensor, nn
+from torch import Tensor, nn, randn_like
 
 from flow_matching.supervised.samplers import IsotropicGaussian
 from flow_matching.supervised.alphas_betas import Alpha, Beta
