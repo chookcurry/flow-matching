@@ -25,8 +25,11 @@ class WHARSampler(nn.Module, Sampleable):
         dataset_id: WHARDatasetID = WHARDatasetID.UCI_HAR,
         scv_group_index: int = 0,
         transform=stft_transform_combine,
+        subject_id: int | None = None,
     ):
         super().__init__()
+
+        self.subject_id = subject_id
 
         self.transform = transform
         self.dummy = nn.Buffer(torch.zeros(1))
@@ -74,7 +77,9 @@ class WHARSampler(nn.Module, Sampleable):
         class_label: int | None = None,
         seed: int | None = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        sample = self.sampler.sample(num_samples, indices, class_label, seed)
+        sample = self.sampler.sample(
+            num_samples, indices, self.subject_id, class_label, seed
+        )
 
         assert len(sample) == 2
         y, x = sample

@@ -41,6 +41,8 @@ class CondAETrainer:
         train_loader: DataLoader,
         val_loader: DataLoader,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
+        eta: float,
+        null_class: int,
         track: bool = False,
     ):
         super().__init__()
@@ -52,6 +54,11 @@ class CondAETrainer:
         self.val_loader.collate_fn = default_collate_fn
 
         self.loss_fn = loss_fn
+
+        assert eta > 0 and eta < 1
+
+        self.eta = eta
+        self.null_class = null_class
 
         self.run = (
             Run(log_system_params=False, system_tracking_interval=None)
@@ -67,6 +74,9 @@ class CondAETrainer:
     ) -> Tensor:
         x, y = batch
         x, y = x.to(device), y.to(device)
+
+        mask = torch.rand(y.shape[0]) < self.eta
+        y[mask] = self.null_class
 
         recon, _ = self.model(x, y)
         loss = self.loss_fn(recon, x)

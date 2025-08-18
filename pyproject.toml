@@ -18,6 +18,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "types-seaborn>=0.13.2.20250516",
     "types-tqdm>=4.67.0.20250516",
+    "umap-learn==0.5.8",
     "whar-datasets",
 ]
 
