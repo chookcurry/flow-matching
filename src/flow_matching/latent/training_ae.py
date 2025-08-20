@@ -1,11 +1,11 @@
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable, Tuple
 import torch
 from tqdm import tqdm
 from torch import Tensor, vmap
 from aim import Run
 from torch.utils.data import DataLoader
 
-from flow_matching.latent.ae import CondAutoencoder
+from flow_matching.latent.ae import Autoencoder
 from flow_matching.supervised.training import MiB, model_size_b
 from flow_matching.whar.ae_losses import (
     ae_log_mag,
@@ -21,50 +21,42 @@ from flow_matching.whar.stft import (
 )
 
 
-def default_collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, Tensor]:
-    x_list = []
-    y_list = []
+def default_collate_fn(batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
+    transformed_batch = []
 
     for y, x in batch:
-        x = stft_transform(x)
-        x = compress_stft(x)
+        x_transformed = stft_transform(x)
+        x_transformed = compress_stft(x_transformed)
 
-        C, RI, F, T = x.shape
-        x = x.reshape(C * RI, F, T)
+        C, RI, F, T = x_transformed.shape
+        x_transformed = x_transformed.reshape(C * RI, F, T)
 
-        x_list.append(x)
-        y_list.append(y)
+        transformed_batch.append((x_transformed, y))
 
-    x_stack = torch.stack(x_list)
-    y_stack = torch.stack(y_list)
+    x_stack = torch.stack([x for x, _ in transformed_batch])
+    y_stack = torch.stack([y for _, y in transformed_batch])
 
     return x_stack, y_stack
 
 
-class CondAETrainer:
+class AETrainer:
     def __init__(
         self,
-        model: CondAutoencoder,
+        model: Autoencoder,
         train_loader: DataLoader,
         val_loader: DataLoader,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
-        eta: float,
-        null_class: int,
         track: bool = False,
     ):
         super().__init__()
-
-        assert eta > 0 and eta < 1
-
         self.model = model
+
         self.train_loader = train_loader
         self.val_loader = val_loader
-        self.loss_fn = loss_fn
-        self.eta = eta
-        self.null_class = null_class
-
         self.train_loader.collate_fn = default_collate_fn
         self.val_loader.collate_fn = default_collate_fn
+
+        self.loss_fn = loss_fn
 
         self.run = (
             Run(log_system_params=False, system_tracking_interval=None)
@@ -78,13 +70,10 @@ class CondAETrainer:
     def get_train_loss(
         self, batch: Tuple[Tensor, Tensor], device: torch.device
     ) -> Tensor:
-        x, y = batch
-        x, y = x.to(device), y.to(device)
+        x, _ = batch
+        x = x.to(device)
 
-        mask = torch.rand(y.shape[0]) < self.eta
-        y[mask] = self.null_class
-
-        recon, _ = self.model(x, y)
+        recon, _ = self.model(x)
         loss = self.loss_fn(recon, x)
 
         return loss
@@ -92,32 +81,30 @@ class CondAETrainer:
     def get_val_metrics(
         self, batch: Tuple[Tensor, Tensor], device: torch.device
     ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
-        x, y = batch
-        x, y = x.to(device), y.to(device)
+        x, _ = batch
+        x = x.to(device)
 
-        recon, _ = self.model(x, y)
+        recon, _ = self.model(x)
         loss = self.loss_fn(recon, x)
 
         x = x.detach().cpu()
         recon = recon.detach().cpu()
+
+        x = vmap(decompress_stft)(x)
+        recon = vmap(decompress_stft)(recon)
 
         mse = ae_mse(recon, x)
         log_mag = ae_log_mag(recon, x)
         log_mag_phase = ae_log_mag_phase(recon, x)
         spect_conv = ae_spect_conv(recon, x)
 
-        B, C, H, W = x.shape
+        x_time = vmap(istft_transform)(x)
+        recon_time = vmap(istft_transform)(recon)
 
-        x_time = vmap(decompress_stft)(x.reshape(B, C // 2, 2, H, W))
-        recon_time = vmap(decompress_stft)(recon.reshape(B, C // 2, 2, H, W))
+        mse = ((x_time - recon_time) ** 2).mean()
+        mae = (x_time - recon_time).abs().mean()
 
-        x_time = vmap(istft_transform)(x_time)
-        recon_time = vmap(istft_transform)(recon_time)
-
-        time_mse = ((x_time - recon_time) ** 2).sum()
-        time_mae = (x_time - recon_time).abs().sum()
-
-        return loss, mse, log_mag, log_mag_phase, spect_conv, time_mse, time_mae
+        return loss, mse, log_mag, log_mag_phase, spect_conv, mse, mae
 
     def train(
         self, num_epochs: int, device: torch.device, lr: float = 1e-3, **kwargs: Any
@@ -186,10 +173,14 @@ class CondAETrainer:
             )
 
             if self.run:
-                self.run.track(val_loss, name="val_loss")
-                self.run.track(val_mse, name="val_mse")
-                self.run.track(val_log_mag, name="val_log_mag")
-                self.run.track(val_log_mag_phase, name="val_log_mag_phase")
-                self.run.track(val_spect_conv, name="val_spect_conv")
-                self.run.track(val_time_mse, name="val_time_mse")
-                self.run.track(val_time_mae, name="val_time_mae")
+                self.run.track(
+                    {
+                        "val_loss": val_loss,
+                        "val_mse": val_mse,
+                        "val_log_mag": val_log_mag,
+                        "val_log_mag_phase": val_log_mag_phase,
+                        "val_spect_conv": val_spect_conv,
+                        "val_time_mse": val_time_mse,
+                        "val_time_mae": val_time_mae,
+                    }
+                )

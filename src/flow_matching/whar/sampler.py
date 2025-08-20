@@ -40,14 +40,41 @@ class WHARSampler(nn.Module, Sampleable):
         self.sampler = Sampler(self.cfg)
         self.sampler.prepare(scv_group_index)
 
-        self.train_indices, self.val_indices, self.test_indices = split_indices(
-            self.cfg, self.sampler.test_indices, percentages=(0.7, 0.2, 0.1)
+        # self.train_indices, self.val_indices, self.test_indices = split_indices(
+        #     self.cfg,
+        #     # self.sampler.test_indices,
+        #     self.sampler.filter_indices(
+        #         self.sampler.test_indices, subject_id=self.subject_id
+        #     ),
+        #     percentages=(0.9, 0.1, 0.0),
+        # )
+
+        self.train_indices, self.val_indices = split_indices(
+            self.cfg,
+            self.sampler.train_indices,
+            percentages=(0.9, 0.1),
         )
 
-    def sample(
-        self, num_samples: int, class_label: int | None = None, seed: int | None = None
+        self.test_indices = self.sampler.test_indices
+
+    def sample_from_indices(
+        self,
+        num_samples: int,
+        indices: List[int],
+        class_label: int | None = None,
+        seed: int | None = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        return self.sample_train(num_samples, class_label, seed)
+        sample = self.sampler.sample(
+            num_samples, indices, activity_id=class_label, seed=seed
+        )
+
+        assert len(sample) == 2
+        y, x = sample
+
+        if self.transform is not None:
+            x = torch.stack([self.transform(xi) for xi in x])
+
+        return x, y
 
     def sample_train(
         self, num_samples: int, class_label: int | None = None, seed: int | None = None
@@ -70,24 +97,16 @@ class WHARSampler(nn.Module, Sampleable):
             num_samples, self.test_indices, class_label, seed
         )
 
-    def sample_from_indices(
-        self,
-        num_samples: int,
-        indices: List[int],
-        class_label: int | None = None,
-        seed: int | None = None,
+    def sample(
+        self, num_samples: int, class_label: int | None = None, seed: int | None = None
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        sample = self.sampler.sample(
-            num_samples, indices, self.subject_id, class_label, seed
-        )
-
-        assert len(sample) == 2
-        y, x = sample
-
-        if self.transform is not None:
-            x = torch.stack([self.transform(xi) for xi in x])
-
-        return x, y
+        return self.sample_train(num_samples, class_label, seed)
 
     def get_shape(self) -> List[int]:
         return list(self.sample(1)[0][0].shape)
+
+    def get_class_weights(self, indices: List[int]) -> dict:
+        return self.sampler.get_class_weights(indices)
+
+    def get_num_classes(self, indices: List[int]) -> int:
+        return len(self.sampler.get_class_weights(indices).keys())

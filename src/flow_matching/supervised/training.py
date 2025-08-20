@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable
+from typing import Callable, Dict
 import torch
 from tqdm import tqdm
 from torch import Tensor, nn
@@ -30,7 +30,7 @@ def sample_time_logit_normal(batch_size: int) -> torch.Tensor:
 
 
 class Trainer(ABC):
-    def __init__(self, model: nn.Module, track: bool = False):
+    def __init__(self, model: ConditionalVectorField, track: bool = False):
         super().__init__()
         self.model = model
         self.run = (
@@ -40,14 +40,24 @@ class Trainer(ABC):
         )
 
     @abstractmethod
-    def get_train_loss(self, **kwargs: Any) -> Tensor:
+    def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
+        pass
+
+    @abstractmethod
+    @torch.no_grad()
+    def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
         pass
 
     def get_optimizer(self, lr: float):
         return torch.optim.Adam(self.model.parameters(), lr=lr)
 
     def train(
-        self, num_epochs: int, device: torch.device, lr: float = 1e-3, **kwargs: Any
+        self,
+        num_epochs: int,
+        device: torch.device,
+        batch_size: int,
+        lr: float = 1e-3,
+        val_every_n_epochs: int = 1000,
     ) -> None:
         # Report model size
         size_b = model_size_b(self.model)
@@ -62,14 +72,23 @@ class Trainer(ABC):
         pbar = tqdm(range(num_epochs))
         for epoch in pbar:
             optimizer.zero_grad()
-            loss = self.get_train_loss(**kwargs, device=device)
+            loss = self.get_train_loss(batch_size=batch_size, device=device)
 
             if self.run:
-                self.run.track(loss.item(), name="loss")
+                self.run.track(loss.item(), name="train_loss")
 
             loss.backward()
             optimizer.step()
             pbar.set_description(f"Epoch {epoch}, loss: {loss.item():.3f}")
+
+            if epoch % val_every_n_epochs == 0:
+                metrics = self.get_val_metrics(device)
+
+                if self.run:
+                    for k, v in metrics.items():
+                        self.run.track(v, name=k)
+
+                print(f"Epoch {epoch},", *[f"{k}: {v:.3f}" for k, v in metrics.items()])
 
         # Finish
         self.model.eval()
@@ -94,19 +113,22 @@ class FlowTrainer(Trainer):
         self.null_class = null_class
         self.sample_time = sample_time
 
-    def get_train_loss(self, **kwargs: Any) -> Tensor:
-        batch_size = kwargs["batch_size"]
+    def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
+        return {}
 
+    def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
         # Step 1: Sample z,y from p_data
         batch_z, batch_y = self.path.p_data.sample(batch_size)
         assert batch_y is not None
+
+        batch_z, batch_y = batch_z.to(device), batch_y.to(device)
 
         # Step 2: Set each label to null class with probability eta
         mask = torch.rand(batch_size) < self.eta
         batch_y[mask] = self.null_class
 
         # Step 3: Sample t and x
-        batch_t = self.sample_time(batch_size)
+        batch_t = self.sample_time(batch_size).to(device)
         batch_x = self.path.sample_conditional_path(batch_z, batch_t)
 
         # Step 4: Regress and output loss

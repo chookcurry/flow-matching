@@ -11,7 +11,7 @@ def stft_transform(x: Tensor, n_fft: int = 63, hop_length: int = 4) -> Tensor:
         n_fft=n_fft,
         hop_length=hop_length,
         return_complex=True,
-        window=torch.hann_window(n_fft),
+        window=torch.hann_window(n_fft).to(x.device),
     )  # (channels, freq_bins, time_steps)
 
     spect = torch.stack([stft.real, stft.imag], dim=1)
@@ -34,36 +34,11 @@ def istft_transform(
         stft_complex,
         n_fft=n_fft,
         hop_length=hop_length,
-        window=torch.hann_window(n_fft).to(stft_complex.device),
+        window=torch.hann_window(n_fft).to(stft_separated.device),
         length=length,
     )  # (channels, time)
 
     return waveform.permute(1, 0)  # (time, channels)
-
-
-def plot_spectrogram_grid(stft_separated: Tensor) -> None:
-    # (channels, 2, freq_bins, time_steps)
-
-    assert stft_separated.ndim == 4
-    channels = stft_separated.shape[0]
-    assert channels == 9
-
-    real = stft_separated[:, 0]
-    imag = stft_separated[:, 1]
-    magnitude = torch.sqrt(real**2 + imag**2)
-
-    _, axs = plt.subplots(3, 3, figsize=(6, 6))
-    for i, ax in enumerate(axs.flatten()):
-        ax.imshow(
-            magnitude[i].detach().cpu().numpy(),
-            origin="lower",
-            aspect="equal",
-            cmap="magma",
-        )
-        ax.axis("off")
-
-    plt.tight_layout()
-    plt.show()
 
 
 def compress_stft(
@@ -137,3 +112,28 @@ def decompress_stft(
     imag_orig = c.imag
 
     return torch.stack([real_orig, imag_orig], dim=1)
+
+
+def plot_spectrogram_grid(stft_separated: Tensor) -> None:
+    # (channels, 2, freq_bins, time_steps)
+
+    assert stft_separated.ndim == 4
+    channels = stft_separated.shape[0]
+    assert channels == 9
+
+    real = stft_separated[:, 0]
+    imag = stft_separated[:, 1]
+    magnitude = torch.sqrt(real**2 + imag**2)
+
+    _, axs = plt.subplots(3, 3, figsize=(6, 6))
+    for i, ax in enumerate(axs.flatten()):
+        ax.imshow(
+            magnitude[i].detach().cpu().numpy(),
+            origin="lower",
+            aspect="equal",
+            cmap="magma",
+        )
+        ax.axis("off")
+
+    plt.tight_layout()
+    plt.show()

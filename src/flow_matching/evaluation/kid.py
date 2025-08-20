@@ -1,19 +1,18 @@
 import torch
+from torch import Tensor
 
 
-def kernel_inception_distance_polynomial(
-    x: torch.Tensor, y: torch.Tensor, degree=3
-) -> torch.Tensor:
+def kernel_inception_distance_polynomial(x: Tensor, y: Tensor, degree=3) -> Tensor:
     """
     Compute KID using a polynomial kernel: K(x, y) = (xᵀy / d + 1)^degree
 
     Args:
-        x (torch.Tensor): Generated features (B, C, H, W) or (B, D)
-        y (torch.Tensor): Real features (B, C, H, W) or (B, D)
+        x (Tensor): Generated features (B, C, H, W) or (B, D)
+        y (Tensor): Real features (B, C, H, W) or (B, D)
         degree (int): Degree of the polynomial kernel
 
     Returns:
-        torch.Tensor: KID estimate using polynomial kernel
+        Tensor: KID estimate using polynomial kernel
     """
     B = x.size(0)
     assert x.shape == y.shape, "x and y must have the same shape"
@@ -42,18 +41,18 @@ def kernel_inception_distance_polynomial(
 
 
 def kernel_inception_distance_polynomial_biased(
-    x: torch.Tensor, y: torch.Tensor, degree=3
-) -> torch.Tensor:
+    x: Tensor, y: Tensor, degree=3
+) -> Tensor:
     """
     Compute KID using a polynomial kernel: K(x, y) = (xᵀy / d + 1)^degree
 
     Args:
-        x (torch.Tensor): Generated features (B, C, H, W) or (B, D)
-        y (torch.Tensor): Real features (B, C, H, W) or (B, D)
+        x (Tensor): Generated features (B, C, H, W) or (B, D)
+        y (Tensor): Real features (B, C, H, W) or (B, D)
         degree (int): Degree of the polynomial kernel
 
     Returns:
-        torch.Tensor: KID estimate using polynomial kernel
+        Tensor: KID estimate using polynomial kernel
     """
     B = x.size(0)
     assert x.shape == y.shape, "x and y must have the same shape"
@@ -81,17 +80,17 @@ def kernel_inception_distance_polynomial_biased(
     return sum_K_xx + sum_K_yy - 2 * sum_K_xy
 
 
-def kernel_inception_distance_rbf(x: torch.Tensor, y: torch.Tensor, alpha=0.001):
+def kernel_inception_distance_rbf(x: Tensor, y: Tensor, alpha=0.001):
     """
     Compute Kernel Inception Distance (KID) using an RBF kernel.
 
     Args:
-        x (torch.Tensor): Generated features of shape (B, C, H, W) or (B, D)
-        y (torch.Tensor): Real features of shape (B, C, H, W) or (B, D)
+        x (Tensor): Generated features of shape (B, C, H, W) or (B, D)
+        y (Tensor): Real features of shape (B, C, H, W) or (B, D)
         alpha (float): RBF kernel bandwidth coefficient
 
     Returns:
-        torch.Tensor: Scalar KID value (MMD^2 estimate)
+        Tensor: Scalar KID value (MMD^2 estimate)
     """
 
     B = x.size(0)

@@ -73,6 +73,39 @@ class EulerSimulator(Simulator):
         return xt + self.ode.drift_coefficient(xt, t, y) * dt
 
 
+class HeunSimulator(Simulator):
+    def __init__(self, ode: ODE):
+        self.ode = ode
+
+    def step(
+        self, xt: torch.Tensor, t: torch.Tensor, dt: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        # Predictor (Euler step)
+        k1 = self.ode.drift_coefficient(xt, t, y)
+        xt_euler = xt + dt * k1
+
+        # Corrector (evaluate slope at t+dt, xt_euler)
+        k2 = self.ode.drift_coefficient(xt_euler, t + dt, y)
+
+        # Average slope
+        return xt + 0.5 * dt * (k1 + k2)
+
+
+class RK4Simulator(Simulator):
+    def __init__(self, ode: ODE):
+        self.ode = ode
+
+    def step(
+        self, xt: torch.Tensor, t: torch.Tensor, dt: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        k1 = self.ode.drift_coefficient(xt, t, y)
+        k2 = self.ode.drift_coefficient(xt + 0.5 * dt * k1, t + 0.5 * dt, y)
+        k3 = self.ode.drift_coefficient(xt + 0.5 * dt * k2, t + 0.5 * dt, y)
+        k4 = self.ode.drift_coefficient(xt + dt * k3, t + dt, y)
+
+        return xt + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
+
+
 class EulerMaruyamaSimulator(Simulator):
     def __init__(self, sde: SDE):
         self.sde = sde

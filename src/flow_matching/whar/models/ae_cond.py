@@ -1,8 +1,15 @@
-from torch import nn, Tensor
+from torch import nn, Tensor, vmap
 from typing import Tuple
+import torch
 import torch.nn.functional as F
 
 from flow_matching.latent.ae import CondAutoencoder
+from flow_matching.whar.stft import (
+    compress_stft,
+    decompress_stft,
+    istft_transform,
+    stft_transform,
+)
 
 
 class ConditionalGroupNorm(nn.Module):
@@ -258,9 +265,47 @@ class CondSpectrogramAE(CondAutoencoder):
         return z
 
     def decode(self, z: Tensor, y: Tensor) -> Tensor:
-        return self.decoder(z, y)
+        x = self.decoder(z, y)
+        return x
 
     def forward(self, x: Tensor, y: Tensor) -> Tuple[Tensor, Tensor]:
         z = self.encode(x, y)
         recon = self.decode(z, y)
         return recon, z
+
+
+# class CondSpectrogramAE(CondAutoencoder):
+#     def __init__(
+#         self, latent_channels: int = 64, num_classes: int = 10, embedding_dim: int = 32
+#     ):
+#         super().__init__()
+#         self.encoder = Encoder(latent_channels, num_classes, embedding_dim)
+#         self.decoder = Decoder(latent_channels, num_classes, embedding_dim)
+
+#     def encode(self, x: Tensor, y: Tensor) -> Tensor:
+#         x = vmap(stft_transform)(x)
+#         # x = torch.stack([compress_stft(x[i]) for i in range(x.shape[0])])
+
+#         B, C, RI, F, T = x.shape
+#         x = x.view(B, C * RI, F, T)
+
+#         z = self.encoder(x, y)
+
+#         return z
+
+#     def decode(self, z: Tensor, y: Tensor) -> Tensor:
+#         x = self.decoder(z, y)
+
+#         B, C, F, T = x.shape
+#         x = x.view(B, C // 2, 2, F, T)
+
+#         # x = torch.stack([decompress_stft(x[i]) for i in range(x.shape[0])])
+#         x = vmap(istft_transform)(x)
+
+#         return x
+
+#     def forward(self, x: Tensor, y: Tensor) -> Tuple[Tensor, Tensor]:
+#         z = self.encode(x, y)
+#         recon = self.decode(z, y)
+
+#         return recon, z
