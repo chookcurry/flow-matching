@@ -114,6 +114,86 @@ def decompress_stft(
     return torch.stack([real_orig, imag_orig], dim=1)
 
 
+def compress_stft_log(stft_separated: Tensor) -> Tensor:
+    """
+    Fully invertible log-based STFT compression.
+    No HF damping here.
+    """
+    real = stft_separated[:, 0]
+    imag = stft_separated[:, 1]
+    c = torch.complex(real, imag)
+
+    magnitude = torch.abs(c)
+    phase = torch.angle(c)
+
+    # Log compression
+    magnitude_compressed = torch.log1p(magnitude)
+
+    # Rebuild complex coefficients
+    c_tilde = magnitude_compressed * torch.exp(1j * phase)
+    return torch.stack([c_tilde.real, c_tilde.imag], dim=1)
+
+
+def decompress_stft_log(stft_compressed: Tensor) -> Tensor:
+    """
+    Inverse of compress_stft_invertible
+    """
+    real = stft_compressed[:, 0]
+    imag = stft_compressed[:, 1]
+    c_tilde = torch.complex(real, imag)
+
+    magnitude_tilde = torch.abs(c_tilde)
+    phase_tilde = torch.angle(c_tilde)
+
+    magnitude = torch.expm1(magnitude_tilde)
+
+    c = magnitude * torch.exp(1j * phase_tilde)
+    return torch.stack([c.real, c.imag], dim=1)
+
+
+def compress_stft_tanh(stft_separated: Tensor, scale: float = 1.0) -> Tensor:
+    """
+    Compress STFT magnitudes to [-1, 1] using tanh, fully invertible without per-sample stats.
+
+    Args:
+        stft_separated: Tensor (channels, 2, freq_bins, time_steps)
+        scale: Controls compression strength
+
+    Returns:
+        Compressed STFT tensor in [-1,1]
+    """
+    real = stft_separated[:, 0]
+    imag = stft_separated[:, 1]
+    c = torch.complex(real, imag)
+
+    magnitude = torch.abs(c)
+    phase = torch.angle(c)
+
+    # Compress magnitude to [-1,1]
+    magnitude_scaled = torch.tanh(scale * magnitude)
+
+    # Rebuild complex
+    c_scaled = magnitude_scaled * torch.exp(1j * phase)
+    return torch.stack([c_scaled.real, c_scaled.imag], dim=1)
+
+
+def decompress_stft_tanh(stft_compressed: Tensor, scale: float = 1.0) -> Tensor:
+    real = stft_compressed[:, 0]
+    imag = stft_compressed[:, 1]
+    c_scaled = torch.complex(real, imag)
+
+    magnitude_scaled = torch.abs(c_scaled).clamp(-0.999, 0.999)
+    # clamp to avoid atanh issues
+    phase_scaled = torch.angle(c_scaled)
+
+    magnitude = (
+        (1 / scale) * 0.5 * torch.log((1 + magnitude_scaled) / (1 - magnitude_scaled))
+    )
+    c = magnitude * torch.exp(1j * phase_scaled)
+
+    return torch.stack([c.real, c.imag], dim=1)
+
+
 def plot_spectrogram_grid(stft_separated: Tensor) -> None:
     # (channels, 2, freq_bins, time_steps)
 

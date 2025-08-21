@@ -38,6 +38,7 @@ class Trainer(ABC):
             if track
             else None
         )
+        self.optimizer = self.get_optimizer(1e-3)
 
     @abstractmethod
     def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
@@ -65,7 +66,11 @@ class Trainer(ABC):
 
         # Start
         self.model.to(device)
-        optimizer = self.get_optimizer(lr)
+        optimizer = (
+            self.optimizer
+            if self.optimizer.param_groups[0]["lr"] == lr
+            else self.get_optimizer(lr)
+        )
         self.model.train()
 
         # Train loop

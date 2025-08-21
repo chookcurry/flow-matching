@@ -1,29 +1,43 @@
-from typing import Any, Callable, Tuple
+from typing import Any, List, Tuple
 import torch
 from tqdm import tqdm
-from torch import Tensor
+from torch import Tensor, vmap
 from aim import Run
 from torch.utils.data import DataLoader
 
-from flow_matching.evaluation.f1 import f1_score, precision_recall_knn
-from flow_matching.evaluation.kid import kernel_inception_distance_polynomial_biased
-from flow_matching.latent.vae import CondVAE
 from flow_matching.supervised.training import MiB, model_size_b
-from flow_matching.whar.stft import compress_stft, decompress_stft, stft_transform
+from flow_matching.whar.ae_losses import (
+    ae_log_mag,
+    ae_log_mag_phase,
+    ae_mse,
+    ae_spect_conv,
+)
+from flow_matching.whar.models.vae_cond import CondSpectrogramVAE
+from flow_matching.whar.stft import (
+    compress_stft,
+    decompress_stft,
+    istft_transform,
+    stft_transform,
+)
+from flow_matching.whar.vae_losses import vae_mse
 
 
-def default_collate_fn(batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
-    transformed_batch = []
+def default_collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, Tensor]:
+    x_list = []
+    y_list = []
 
     for y, x in batch:
-        x_transformed = stft_transform(x)
-        x_transformed = compress_stft(x_transformed)
-        C, RI, F, T = x_transformed.shape
-        x_transformed = x_transformed.reshape(C * RI, F, T)
-        transformed_batch.append((x_transformed, y))
+        x = stft_transform(x)
+        x = compress_stft(x)
 
-    x_stack = torch.stack([x for x, _ in transformed_batch])
-    y_stack = torch.stack([y for _, y in transformed_batch])
+        C, RI, F, T = x.shape
+        x = x.reshape(C * RI, F, T)
+
+        x_list.append(x)
+        y_list.append(y)
+
+    x_stack = torch.stack(x_list)
+    y_stack = torch.stack(y_list)
 
     return x_stack, y_stack
 
@@ -31,21 +45,25 @@ def default_collate_fn(batch: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
 class CondVAETrainer:
     def __init__(
         self,
-        model: CondVAE,
+        model: CondSpectrogramVAE,
         train_loader: DataLoader,
         val_loader: DataLoader,
-        loss_fn: Callable[[Tensor, Tensor, Tensor, Tensor], Tensor],
+        eta: float,
+        null_class: int,
         track: bool = False,
     ):
         super().__init__()
-        self.model = model
 
+        assert eta > 0 and eta < 1
+
+        self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
+        self.eta = eta
+        self.null_class = null_class
+
         self.train_loader.collate_fn = default_collate_fn
         self.val_loader.collate_fn = default_collate_fn
-
-        self.loss_fn = loss_fn
 
         self.run = (
             Run(log_system_params=False, system_tracking_interval=None)
@@ -57,37 +75,56 @@ class CondVAETrainer:
         return torch.optim.Adam(self.model.parameters(), lr=lr)
 
     def get_train_loss(
-        self, batch: Tuple[Tensor, Tensor], device: torch.device
+        self, batch: Tuple[Tensor, Tensor], device: torch.device, beta: float
     ) -> Tensor:
         x, y = batch
-        recon, mu, logvar = self.model(x.to(device), y.to(device))
-        loss = self.loss_fn(recon, x, mu, logvar)
+        x, y = x.to(device), y.to(device)
+
+        mask = torch.rand(y.shape[0]) < self.eta
+        y[mask] = self.null_class
+
+        recon, mu, logvar = self.model(x, y)
+        loss = vae_mse(recon, x, mu, logvar)
+
         return loss
 
+    @torch.no_grad()
     def get_val_metrics(
-        self, batch: Tuple[Tensor, Tensor], device: torch.device
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+        self, batch: Tuple[Tensor, Tensor], device: torch.device, beta: float
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         x, y = batch
-        x1, x2 = torch.split(x, x.shape[0] // 2, dim=0)
-        y1, y2 = torch.split(y, y.shape[0] // 2, dim=0)
+        x, y = x.to(device), y.to(device)
 
-        recon1, mu1, logvar1 = self.model(x1.to(device), y1.to(device))
+        _, mu, logvar = self.model.encode(x, y)
+        recon = self.model.decode(mu, y)
+        loss = vae_mse(recon, x, mu, logvar)
 
-        # x1 = decompress_stft(x1)
-        # recon1 = decompress_stft(recon1)
-        loss = self.loss_fn(recon1, x1, mu1, logvar1) * 30
+        x = x.detach().cpu()
+        recon = recon.detach().cpu()
 
-        x2 = decompress_stft(x2)
-        recon1 = decompress_stft(recon1)
-        kid = kernel_inception_distance_polynomial_biased(x2, recon1)
-        precision, recall = precision_recall_knn(x2, recon1)
-        f1 = f1_score(precision, recall)
+        mse = ae_mse(recon, x)
+        log_mag = ae_log_mag(recon, x)
+        log_mag_phase = ae_log_mag_phase(recon, x)
+        spect_conv = ae_spect_conv(recon, x)
 
-        return loss, kid, precision, recall, f1
+        B, C, H, W = x.shape
+
+        x_time = vmap(decompress_stft)(x.reshape(B, C // 2, 2, H, W))
+        recon_time = vmap(decompress_stft)(recon.reshape(B, C // 2, 2, H, W))
+
+        x_time = vmap(istft_transform)(x_time)
+        recon_time = vmap(istft_transform)(recon_time)
+
+        time_mse = ((x_time - recon_time) ** 2).sum()
+        time_mae = (x_time - recon_time).abs().sum()
+
+        return loss, mse, log_mag, log_mag_phase, spect_conv, time_mse, time_mae
 
     def train(
         self, num_epochs: int, device: torch.device, lr: float = 1e-3, **kwargs: Any
     ) -> None:
+        beta = kwargs["beta"]
+
         # Report model size
         size_b = model_size_b(self.model)
         print(f"Training model with size: {size_b / MiB:.3f} MiB")
@@ -104,7 +141,9 @@ class CondVAETrainer:
             pbar = tqdm(self.train_loader)
             for batch in pbar:
                 optimizer.zero_grad()
-                loss = self.get_train_loss(batch, device)
+                loss = self.get_train_loss(
+                    batch, device, beta=beta or epoch / num_epochs
+                )
 
                 if self.run:
                     self.run.track(loss.item(), name="train_loss")
@@ -118,34 +157,44 @@ class CondVAETrainer:
 
             # Validation
             val_losses = []
-            val_kids = []
-            val_precisions = []
-            val_recalls = []
-            val_f1s = []
+            val_mses = []
+            val_log_mags = []
+            val_log_mag_phases = []
+            val_spect_convs = []
+            val_time_mses = []
+            val_time_maes = []
 
             pbar = tqdm(self.val_loader)
             for batch in pbar:
-                loss, kid, precision, recall, f1 = self.get_val_metrics(batch, device)
+                loss, mse, log_mag, log_mag_phase, spect_conv, time_mse, time_mae = (
+                    self.get_val_metrics(batch, device, beta=beta or epoch / num_epochs)
+                )
 
                 val_losses.append(loss)
-                val_kids.append(kid)
-                val_precisions.append(precision)
-                val_recalls.append(recall)
-                val_f1s.append(f1)
+                val_mses.append(mse)
+                val_log_mags.append(log_mag)
+                val_log_mag_phases.append(log_mag_phase)
+                val_spect_convs.append(spect_conv)
+                val_time_mses.append(time_mse)
+                val_time_maes.append(time_mae)
 
             val_loss = torch.stack(val_losses).mean().item()
-            val_kid = torch.stack(val_kids).mean().item()
-            val_precision = torch.stack(val_precisions).mean().item()
-            val_recall = torch.stack(val_recalls).mean().item()
-            val_f1 = torch.stack(val_f1s).mean().item()
+            val_mse = torch.stack(val_mses).mean().item()
+            val_log_mag = torch.stack(val_log_mags).mean().item()
+            val_log_mag_phase = torch.stack(val_log_mag_phases).mean().item()
+            val_spect_conv = torch.stack(val_spect_convs).mean().item()
+            val_time_mse = torch.stack(val_time_mses).mean().item()
+            val_time_mae = torch.stack(val_time_maes).mean().item()
 
             print(
-                f"Loss: {val_loss:.3f}, KID: {val_kid:.3f}, Precision: {val_precision:.3f}, Recall: {val_recall:.3f}, F1: {val_f1:.3f}"
+                f"Loss: {val_loss:.3f}, MSE: {val_mse:.3f}, Log Mag: {val_log_mag:.3f}, Log Mag Phase: {val_log_mag_phase:.3f}, Spect Conv: {val_spect_conv:.3f}, Time MSE: {val_time_mse:.3f}, Time MAE: {val_time_mae:.3f}"
             )
 
             if self.run:
                 self.run.track(val_loss, name="val_loss")
-                self.run.track(val_kid, name="val_kid")
-                self.run.track(val_precision, name="val_precision")
-                self.run.track(val_recall, name="val_recall")
-                self.run.track(val_f1, name="val_f1")
+                self.run.track(val_mse, name="val_mse")
+                self.run.track(val_log_mag, name="val_log_mag")
+                self.run.track(val_log_mag_phase, name="val_log_mag_phase")
+                self.run.track(val_spect_conv, name="val_spect_conv")
+                self.run.track(val_time_mse, name="val_time_mse")
+                self.run.track(val_time_mae, name="val_time_mae")

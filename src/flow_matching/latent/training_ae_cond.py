@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Tuple
+from typing import Any, List, Tuple
 import torch
 from tqdm import tqdm
 from torch import Tensor, vmap
@@ -13,24 +13,46 @@ from flow_matching.whar.ae_losses import (
     ae_mse,
     ae_spect_conv,
 )
+from flow_matching.whar.models.cae import SpectrogramCAE
 from flow_matching.whar.stft import (
     compress_stft,
     decompress_stft,
     istft_transform,
     stft_transform,
 )
+from flow_matching.whar.supcon import loss_supcon
 
 
-def default_collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, Tensor]:
+def transform(x: Tensor) -> Tensor:
+    x = stft_transform(x)
+    x = compress_stft(x)
+
+    C, RI, F, T = x.shape
+    x = x.reshape(C * RI, F, T)
+
+    return x
+
+
+def detransform(x: Tensor) -> Tensor:
+    C, F, T = x.shape
+    x = x.reshape(C // 2, 2, F, T)
+
+    x = decompress_stft(x)
+    x = istft_transform(x)
+
+    return x
+
+
+def loss_fn(x: Tensor, y: Tensor, z: Tensor, recon: Tensor) -> Tensor:
+    return ae_mse(recon, x) + 0.01 * loss_supcon(z.view(z.shape[0], -1), y)
+
+
+def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, Tensor]:
     x_list = []
     y_list = []
 
     for y, x in batch:
-        x = stft_transform(x)
-        x = compress_stft(x)
-
-        C, RI, F, T = x.shape
-        x = x.reshape(C * RI, F, T)
+        x = transform(x)
 
         x_list.append(x)
         y_list.append(y)
@@ -44,13 +66,15 @@ def default_collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, Tens
 class CondAETrainer:
     def __init__(
         self,
-        model: CondAutoencoder,
+        model: CondAutoencoder | SpectrogramCAE,
         train_loader: DataLoader,
         val_loader: DataLoader,
-        loss_fn: Callable[[Tensor, Tensor], Tensor],
         eta: float,
         null_class: int,
         track: bool = False,
+        detransform=detransform,
+        loss_fn=loss_fn,
+        collate_fn=collate_fn,
     ):
         super().__init__()
 
@@ -59,12 +83,13 @@ class CondAETrainer:
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
-        self.loss_fn = loss_fn
         self.eta = eta
         self.null_class = null_class
 
-        self.train_loader.collate_fn = default_collate_fn
-        self.val_loader.collate_fn = default_collate_fn
+        self.detransform = detransform
+        self.loss_fn = loss_fn
+        self.train_loader.collate_fn = collate_fn
+        self.val_loader.collate_fn = collate_fn
 
         self.run = (
             Run(log_system_params=False, system_tracking_interval=None)
@@ -84,19 +109,20 @@ class CondAETrainer:
         mask = torch.rand(y.shape[0]) < self.eta
         y[mask] = self.null_class
 
-        recon, _ = self.model(x, y)
-        loss = self.loss_fn(recon, x)
+        recon, z = self.model(x, y)
+        loss = loss_fn(x, y, z, recon)
 
         return loss
 
+    @torch.no_grad()
     def get_val_metrics(
         self, batch: Tuple[Tensor, Tensor], device: torch.device
     ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         x, y = batch
         x, y = x.to(device), y.to(device)
 
-        recon, _ = self.model(x, y)
-        loss = self.loss_fn(recon, x)
+        recon, z = self.model(x, y)
+        loss = loss_fn(x, y, z, recon)
 
         x = x.detach().cpu()
         recon = recon.detach().cpu()
@@ -106,13 +132,8 @@ class CondAETrainer:
         log_mag_phase = ae_log_mag_phase(recon, x)
         spect_conv = ae_spect_conv(recon, x)
 
-        B, C, H, W = x.shape
-
-        x_time = vmap(decompress_stft)(x.reshape(B, C // 2, 2, H, W))
-        recon_time = vmap(decompress_stft)(recon.reshape(B, C // 2, 2, H, W))
-
-        x_time = vmap(istft_transform)(x_time)
-        recon_time = vmap(istft_transform)(recon_time)
+        x_time = vmap(self.detransform)(x)
+        recon_time = vmap(self.detransform)(recon)
 
         time_mse = ((x_time - recon_time) ** 2).sum()
         time_mae = (x_time - recon_time).abs().sum()
@@ -142,6 +163,9 @@ class CondAETrainer:
 
                 if self.run:
                     self.run.track(loss.item(), name="train_loss")
+
+                if loss.isnan():
+                    continue
 
                 loss.backward()
                 optimizer.step()

@@ -13,6 +13,7 @@ from flow_matching.supervised.training import (
     sample_time_uniform,
     sample_time_logit_normal,
 )
+from flow_matching.whar.models.cae import SpectrogramCAE
 
 
 class LatentFlowTrainer(Trainer):
@@ -20,7 +21,7 @@ class LatentFlowTrainer(Trainer):
         self,
         path: ConditionalProbabilityPath,
         model: ConditionalVectorField,
-        ae: CondAutoencoder,
+        ae: CondAutoencoder | SpectrogramCAE,
         eta: float,
         null_class: int,
         num_classes: int,
@@ -73,7 +74,7 @@ class LatentFlowTrainer(Trainer):
         device: torch.device,
         guidance_scale: float = 2.0,
         num_timesteps: int = 100,
-        num_samples: int = 40,
+        num_samples: int = 40,  # 100,  # 40,
     ) -> Any:
         ode = CFGVectorFieldODE(
             self.model, guidance_scale=guidance_scale, null_class=self.null_class
