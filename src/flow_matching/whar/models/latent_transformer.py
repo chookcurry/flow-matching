@@ -180,7 +180,7 @@ class FlowTransformerBackbone(ConditionalVectorField):
         self.time_embed = SinusoidalTimeEmbedding(time_emb_dim)
         cond_in_dim = time_emb_dim
         if use_class_condition:
-            self.label_embed = nn.Embedding(num_classes, hidden_dim)
+            self.label_embed = nn.Embedding(num_classes + 1, hidden_dim)
             cond_in_dim += hidden_dim
         self.cond_mlp = nn.Sequential(
             nn.Linear(cond_in_dim, hidden_dim),
