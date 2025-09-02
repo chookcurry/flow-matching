@@ -22,7 +22,7 @@ def stft_transform(x: Tensor, n_fft: int = 63, hop_length: int = 4) -> Tensor:
 
 def istft_transform(
     stft_separated: Tensor, n_fft: int = 63, hop_length: int = 4, length: int = 128
-):
+) -> Tensor:
     # (channels, 2, freq_bins, time_steps)
 
     real = stft_separated[:, 0]
@@ -44,18 +44,11 @@ def istft_transform(
 def compress_stft(
     stft_separated: Tensor, alpha: float = 0.6, beta: float = 1.0
 ) -> Tensor:
-    """
-    Apply amplitude transformation to STFT coefficients:
-    c_tilde = beta * |c|^alpha * exp(i * angle(c))
+    # Apply amplitude transformation to STFT coefficients:
+    # c_tilde = beta * |c|^alpha * exp(i * angle(c))
 
-    Args:
-        stft_separated: Tensor (channels, 2, freq_bins, time_steps) with real and imag parts.
-        alpha: Compression exponent in (0, 1].
-        beta: Scaling factor for normalization.
+    # (channels, 2, freq_bins, time_steps)
 
-    Returns:
-        Transformed STFT tensor of the same shape.
-    """
     real = stft_separated[:, 0]
     imag = stft_separated[:, 1]
     c = torch.complex(real, imag)
@@ -84,18 +77,11 @@ def compress_stft(
 def decompress_stft(
     stft_compressed: Tensor, alpha: float = 0.6, beta: float = 1.0
 ) -> Tensor:
-    """
-    Inverse amplitude transformation to recover original STFT coefficients:
-    c = (|c_tilde| / beta)^(1/alpha) * exp(i * angle(c_tilde))
+    # Inverse amplitude transformation to recover original STFT coefficients:
+    # c = (|c_tilde| / beta)^(1/alpha) * exp(i * angle(c_tilde))
 
-    Args:
-        stft_compressed: Tensor (channels, 2, freq_bins, time_steps) with compressed real and imag parts.
-        alpha: Compression exponent used during compression.
-        beta: Scaling factor used during compression.
+    # (channels, 2, freq_bins, time_steps)
 
-    Returns:
-        Decompressed STFT tensor of the same shape.
-    """
     real = stft_compressed[:, 0]
     imag = stft_compressed[:, 1]
     c_tilde = torch.complex(real, imag)

@@ -2,23 +2,13 @@ from abc import ABC, abstractmethod
 from typing import Callable, Dict
 import torch
 from tqdm import tqdm
-from torch import Tensor, nn
+from torch import Tensor
 from aim import Run
+from torch.optim import Optimizer, Adam
 
 from flow_matching.supervised.odes_sdes import ConditionalVectorField
 from flow_matching.supervised.prob_paths import ConditionalProbabilityPath
-
-
-MiB = 1024**2
-
-
-def model_size_b(model: nn.Module) -> int:
-    size = 0
-    for param in model.parameters():
-        size += param.nelement() * param.element_size()
-    for buf in model.buffers():
-        size += buf.nelement() * buf.element_size()
-    return size
+from flow_matching.utils.utils import model_size_b, MiB
 
 
 def sample_time_uniform(batch_size: int) -> torch.Tensor:
@@ -38,7 +28,7 @@ class Trainer(ABC):
             if track
             else None
         )
-        self.optimizer = self.get_optimizer(1e-3)
+        self.optimizer = self.get_optimizer()
 
     @abstractmethod
     def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
@@ -49,8 +39,8 @@ class Trainer(ABC):
     def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
         pass
 
-    def get_optimizer(self, lr: float):
-        return torch.optim.Adam(self.model.parameters(), lr=lr)
+    def get_optimizer(self, lr: float = 1e-3) -> Optimizer:
+        return Adam(self.model.parameters(), lr=lr)
 
     def train(
         self,
@@ -71,11 +61,12 @@ class Trainer(ABC):
             if self.optimizer.param_groups[0]["lr"] == lr
             else self.get_optimizer(lr)
         )
-        self.model.train()
 
         # Train loop
         pbar = tqdm(range(num_epochs))
         for epoch in pbar:
+            self.model.train()
+
             optimizer.zero_grad()
             loss = self.get_train_loss(batch_size=batch_size, device=device)
 
@@ -87,6 +78,8 @@ class Trainer(ABC):
             pbar.set_description(f"Epoch {epoch}, loss: {loss.item():.3f}")
 
             if epoch % val_every_n_epochs == 0:
+                self.model.eval()
+
                 metrics = self.get_val_metrics(device)
 
                 if self.run:

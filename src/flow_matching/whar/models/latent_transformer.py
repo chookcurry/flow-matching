@@ -1,5 +1,5 @@
 import math
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -34,12 +34,11 @@ class SinusoidalTimeEmbedding(nn.Module):
         return emb
 
 
-def build_2d_sincos_pos_embed(h: int, w: int, dim: int, device=None) -> Tensor:
+def build_2d_sincos_pos_embed(h: int, w: int, dim: int, device: torch.device) -> Tensor:
     """Create 2D sine-cosine positional embeddings as in ViT/MAE.
     Returns: [H*W, dim]
     """
     assert dim % 4 == 0, "positional embedding dim must be divisible by 4"
-    device = device or torch.device("cpu")
 
     grid_y = torch.arange(h, device=device, dtype=torch.float32)
     grid_x = torch.arange(w, device=device, dtype=torch.float32)
@@ -49,7 +48,7 @@ def build_2d_sincos_pos_embed(h: int, w: int, dim: int, device=None) -> Tensor:
     dim_half = dim // 2
     dim_quarter = dim // 4
 
-    def get_embed(pos, d_model):
+    def get_embed(pos: Tensor, d_model: int) -> Tensor:
         omega = torch.arange(d_model // 2, device=device, dtype=torch.float32)
         omega = 1.0 / (10000 ** (omega / (d_model // 2)))
         out = pos.flatten()[:, None] * omega[None, :]
@@ -84,7 +83,8 @@ class AdaLayerNorm(nn.Module):
     def forward(self, x: Tensor, cond: Tensor) -> Tensor:
         # x: [B, N, D], cond: [B, cond_dim]
         g, b = self.to_gamma_beta(cond).chunk(2, dim=-1)
-        return self.norm(x) * (1 + g.unsqueeze(1)) + b.unsqueeze(1)
+        out: Tensor = self.norm(x) * (1 + g.unsqueeze(1)) + b.unsqueeze(1)
+        return out
 
 
 class TransformerBlock(nn.Module):
@@ -211,15 +211,16 @@ class FlowTransformerBackbone(ConditionalVectorField):
         self.final_ln = nn.LayerNorm(hidden_dim)
 
         # Cache for positional embeddings per (H, W)
-        self._pos_cache: dict = {}
+        self._pos_cache: Dict[Any, Tensor] = {}
 
     @torch.no_grad()
-    def _get_pos_embed(self, H: int, W: int, device) -> Tensor:
+    def _get_pos_embed(self, H: int, W: int, device: torch.device) -> Tensor:
         key = (H, W, device)
         if key not in self._pos_cache:
             pos = build_2d_sincos_pos_embed(H, W, self.hidden_dim, device=device)
             self._pos_cache[key] = pos
-        return self._pos_cache[key]
+        embed: Tensor = self._pos_cache[key]
+        return embed
 
     def forward(self, x: Tensor, t: Tensor, y: Optional[Tensor] = None) -> Tensor:
         """
@@ -256,6 +257,6 @@ class FlowTransformerBackbone(ConditionalVectorField):
             h = blk(h, cond)
 
         h = self.final_ln(h)
-        out = self.out_proj(h)  # [B, N, C]
+        out: Tensor = self.out_proj(h)  # [B, N, C]
         out = out.reshape(B, H, W, C).permute(0, 3, 1, 2).contiguous()
         return out  # velocity field

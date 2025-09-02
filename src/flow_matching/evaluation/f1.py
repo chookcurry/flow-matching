@@ -1,28 +1,16 @@
 from typing import Tuple
 import torch
+from torch import Tensor
 
 
-def compute_pairwise_distances(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+def compute_pairwise_distances(x: Tensor, y: Tensor) -> Tensor:
     # x: [N, D], y: [M, D]
     return torch.cdist(x, y, p=2)  # Euclidean
 
 
 def precision_recall_knn(
-    real_feats: torch.Tensor, gen_feats: torch.Tensor, k=3, batch_size=1000
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Compute precision and recall in feature space using kNN radii.
-
-    Args:
-        real_feats (Tensor): Real features, shape (N, D)
-        gen_feats (Tensor): Generated features, shape (M, D)
-        k (int): Number of neighbors to use (default: 3)
-        batch_size (int): Chunk size for memory-efficient computation
-
-    Returns:
-        (float, float): Precision, Recall
-    """
-
+    real_feats: Tensor, gen_feats: Tensor, k: int = 3, batch_size: int = 1000
+) -> Tuple[Tensor, Tensor]:
     real_feats = real_feats.view(real_feats.size(0), -1)
     gen_feats = gen_feats.view(gen_feats.size(0), -1)
 
@@ -61,7 +49,7 @@ def precision_recall_knn(
     return precision, recall
 
 
-def f1_score(precision: torch.Tensor, recall: torch.Tensor) -> torch.Tensor:
+def f1_score(precision: Tensor, recall: Tensor) -> Tensor:
     if precision + recall == torch.zeros(1):
         return torch.zeros(1)
     return 2 * (precision * recall) / (precision + recall)

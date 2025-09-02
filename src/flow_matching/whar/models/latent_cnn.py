@@ -1,11 +1,11 @@
 import math
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 from flow_matching.supervised.odes_sdes import ConditionalVectorField
 
 
-# ========= time embedding =========
 class FourierEncoder(nn.Module):
     def __init__(self, dim: int):
         super().__init__()
@@ -14,7 +14,7 @@ class FourierEncoder(nn.Module):
         self.half_dim = dim // 2
         self.weights = nn.Parameter(torch.randn(1, self.half_dim))
 
-    def forward(self, t: torch.Tensor) -> torch.Tensor:
+    def forward(self, t: Tensor) -> Tensor:
         # t: (B,) or (B,1) or (B,1,1,1)
 
         t = t.view(-1, 1)
@@ -24,12 +24,7 @@ class FourierEncoder(nn.Module):
         return torch.cat([sin_embed, cos_embed], dim=-1) * math.sqrt(2.0)  # (B, dim)
 
 
-# ========= FiLM head (per block) =========
 class FiLMHead(nn.Module):
-    """
-    Produces per-channel gamma, beta for a specific block.
-    """
-
     def __init__(self, cond_dim: int, n_channels: int, hidden: int | None = None):
         super().__init__()
         h = hidden or max(n_channels, cond_dim)
@@ -40,12 +35,15 @@ class FiLMHead(nn.Module):
 
         self.n_channels = n_channels
 
-    def forward(self, cond: torch.Tensor):
+    def forward(self, cond: Tensor) -> Tensor:
         # cond: (B, cond_dim)
+
         gammas, betas = self.net(cond).chunk(2, dim=-1)  # (B, C), (B, C)
         # Optional: start near identity
-        gammas = gammas  # could also do (1 + 0.1 * tanh(gammas))
-        betas = betas
+
+        gammas: Tensor
+        betas: Tensor
+
         return gammas, betas
 
 
@@ -59,7 +57,7 @@ class ResidualFiLMBlock(nn.Module):
         self.film_head = film_head
         self.act = nn.ReLU(inplace=True)
 
-    def forward(self, x: torch.Tensor, cond: torch.Tensor):
+    def forward(self, x: Tensor, cond: Tensor):
         residual = x
         out = self.conv1(x)
         out = self.act(out)
@@ -124,7 +122,7 @@ class FiLMNetMultiBlock(ConditionalVectorField):
             blocks.append(block)
         self.blocks = nn.ModuleList(blocks)
 
-    def forward(self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor):
+    def forward(self, x: Tensor, t: Tensor, y: Tensor):
         """
         x: (B, 24, 4, 4)
         y: (B,)  long

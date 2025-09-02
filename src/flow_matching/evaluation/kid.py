@@ -2,18 +2,9 @@ import torch
 from torch import Tensor
 
 
-def kernel_inception_distance_polynomial(x: Tensor, y: Tensor, degree=3) -> Tensor:
-    """
-    Compute KID using a polynomial kernel: K(x, y) = (xᵀy / d + 1)^degree
+def kernel_inception_distance_poly(x: Tensor, y: Tensor, degree: int = 3) -> Tensor:
+    # polynomial kernel: K(x, y) = (xᵀy / d + 1)^degree
 
-    Args:
-        x (Tensor): Generated features (B, C, H, W) or (B, D)
-        y (Tensor): Real features (B, C, H, W) or (B, D)
-        degree (int): Degree of the polynomial kernel
-
-    Returns:
-        Tensor: KID estimate using polynomial kernel
-    """
     B = x.size(0)
     assert x.shape == y.shape, "x and y must have the same shape"
 
@@ -40,20 +31,11 @@ def kernel_inception_distance_polynomial(x: Tensor, y: Tensor, degree=3) -> Tens
     return sum_K_xx + sum_K_yy - 2 * sum_K_xy
 
 
-def kernel_inception_distance_polynomial_biased(
-    x: Tensor, y: Tensor, degree=3
+def kernel_inception_distance_poly_biased(
+    x: Tensor, y: Tensor, degree: int = 3
 ) -> Tensor:
-    """
-    Compute KID using a polynomial kernel: K(x, y) = (xᵀy / d + 1)^degree
+    # polynomial kernel: K(x, y) = (xᵀy / d + 1)^degree
 
-    Args:
-        x (Tensor): Generated features (B, C, H, W) or (B, D)
-        y (Tensor): Real features (B, C, H, W) or (B, D)
-        degree (int): Degree of the polynomial kernel
-
-    Returns:
-        Tensor: KID estimate using polynomial kernel
-    """
     B = x.size(0)
     assert x.shape == y.shape, "x and y must have the same shape"
 
@@ -80,18 +62,8 @@ def kernel_inception_distance_polynomial_biased(
     return sum_K_xx + sum_K_yy - 2 * sum_K_xy
 
 
-def kernel_inception_distance_rbf(x: Tensor, y: Tensor, alpha=0.001):
-    """
-    Compute Kernel Inception Distance (KID) using an RBF kernel.
-
-    Args:
-        x (Tensor): Generated features of shape (B, C, H, W) or (B, D)
-        y (Tensor): Real features of shape (B, C, H, W) or (B, D)
-        alpha (float): RBF kernel bandwidth coefficient
-
-    Returns:
-        Tensor: Scalar KID value (MMD^2 estimate)
-    """
+def kernel_inception_distance_rbf(x: Tensor, y: Tensor, alpha: float = 0.001) -> Tensor:
+    # RBF kernel: K(x, y) = exp(-alpha * ||x - y||^2)
 
     B = x.size(0)
     assert x.shape == y.shape, "x and y must have the same shape"

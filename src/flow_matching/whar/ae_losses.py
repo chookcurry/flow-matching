@@ -47,7 +47,7 @@ def ae_log_mag(recon_x: Tensor, x: Tensor) -> Tensor:
     return log_mag
 
 
-def ae_log_mag_phase(recon_x: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+def ae_log_mag_phase(recon_x: Tensor, x: Tensor) -> Tensor:
     recon_real, recon_imag = get_real_imag(recon_x)
     x_real, x_imag = get_real_imag(x)
 
@@ -75,8 +75,8 @@ def ae_log_mag_phase(recon_x: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
 
 
 def phase_loss_weighted(
-    recon_x: torch.Tensor, x: torch.Tensor, eps=1e-8, delta=1e-8
-) -> torch.Tensor:
+    recon_x: Tensor, x: Tensor, eps: float = 1e-8, delta: float = 1e-8
+) -> Tensor:
     # Separate real and imaginary parts
     recon_real, recon_imag = get_real_imag(recon_x)
     x_real, x_imag = get_real_imag(x)
@@ -92,7 +92,7 @@ def phase_loss_weighted(
 
     # Weight by magnitude of target
     weight = x_mag / (x_mag.mean() + delta)
-    weighted_phase_loss = (weight * phase_term).mean()
+    weighted_phase_loss: Tensor = (weight * phase_term).mean()
 
     return weighted_phase_loss
 
@@ -111,6 +111,6 @@ def ae_spect_conv(recon_x: Tensor, x: Tensor) -> Tensor:
     # Flatten C,H,W to compute per-sample L2 norms
     diff_norm = torch.norm((recon_mag - x_mag).reshape(B, -1), dim=1)
     ref_norm = torch.norm(x_mag.reshape(B, -1), dim=1) + 1e-8
-    sc_per_sample = diff_norm / ref_norm
+    sc_per_sample: Tensor = diff_norm / ref_norm
 
     return sc_per_sample.mean()

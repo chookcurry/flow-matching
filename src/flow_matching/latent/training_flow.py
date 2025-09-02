@@ -1,19 +1,19 @@
-from typing import Any, Callable, List
+from typing import Any, Callable, Dict, List
 
+import numpy as np
 import torch
 from torch import Tensor
 from flow_matching.evaluation.f1 import f1_score, precision_recall_knn
-from flow_matching.evaluation.kid import kernel_inception_distance_polynomial_biased
-from flow_matching.latent.ae import CondAutoencoder
+from flow_matching.evaluation.kid import kernel_inception_distance_poly_biased
+from flow_matching.latent.autoencoder import CAE
 from flow_matching.supervised.odes_sdes import CFGVectorFieldODE, ConditionalVectorField
 from flow_matching.supervised.prob_paths import ConditionalProbabilityPath
-from flow_matching.supervised.simulators import EulerSimulator, RK4Simulator
+from flow_matching.supervised.simulators import RK4Simulator
 from flow_matching.supervised.training import (
     Trainer,
     sample_time_uniform,
     sample_time_logit_normal,
 )
-from flow_matching.whar.models.cae import SpectrogramCAE
 
 
 class LatentFlowTrainer(Trainer):
@@ -21,7 +21,7 @@ class LatentFlowTrainer(Trainer):
         self,
         path: ConditionalProbabilityPath,
         model: ConditionalVectorField,
-        ae: CondAutoencoder | SpectrogramCAE,
+        ae: CAE,
         eta: float,
         null_class: int,
         num_classes: int,
@@ -37,9 +37,8 @@ class LatentFlowTrainer(Trainer):
         self.eta = eta
         self.null_class = null_class
         self.num_classes = num_classes
-        self.sample_time = sample_time
+        self.sample_time = sample_time_uniform
 
-        # freeze autoencoder
         for param in self.ae.parameters():
             param.requires_grad = False
 
@@ -74,7 +73,7 @@ class LatentFlowTrainer(Trainer):
         device: torch.device,
         guidance_scale: float = 2.0,
         num_timesteps: int = 100,
-        num_samples: int = 40,  # 100,  # 40,
+        num_samples: int = 40,  # 100
     ) -> Any:
         ode = CFGVectorFieldODE(
             self.model, guidance_scale=guidance_scale, null_class=self.null_class
@@ -89,10 +88,7 @@ class LatentFlowTrainer(Trainer):
             .to(device)
         )
 
-        kids = []
-        precisions = []
-        recalls = []
-        f1s = []
+        metrics_lists: Dict[str, List[float]] = {}
 
         for label in range(self.num_classes):
             batch_z, batch_y = self.path.p_data.sample(num_samples, label)
@@ -100,37 +96,21 @@ class LatentFlowTrainer(Trainer):
 
             batch_z, batch_y = batch_z.to(device), batch_y.to(device)
 
-            # encode z to latent space
             batch_z = self.ae.encode(batch_z, batch_y)
 
             batch_x0, _ = self.path.p_simple.sample(num_samples)
             batch_x0 = batch_x0.to(device)
-
-            assert batch_x0.shape == batch_z.shape, (
-                f"{batch_x0.shape} != {batch_z.shape}"
-            )
-
             batch_x1 = simulator.simulate(batch_x0, ts, batch_y)
 
-            kid = kernel_inception_distance_polynomial_biased(batch_x1, batch_z)
+            kid = kernel_inception_distance_poly_biased(batch_x1, batch_z)
             precision, recall = precision_recall_knn(batch_x1, batch_z)
             f1 = f1_score(precision, recall)
 
-            kids.append(kid)
-            precisions.append(precision)
-            recalls.append(recall)
-            f1s.append(f1)
+            metrics_lists["kid"].append(kid.item())
+            metrics_lists["precision"].append(precision.item())
+            metrics_lists["recall"].append(recall.item())
+            metrics_lists["f1"].append(f1.item())
 
-        kid = torch.stack(kids).mean()
-        precision = torch.stack(precisions).mean()
-        recall = torch.stack(recalls).mean()
-        f1 = torch.stack(f1s).mean()
-
-        metrics = {
-            "kid": kid.item(),
-            "precision": precision.item(),
-            "recall": recall.item(),
-            "f1": f1.item(),
-        }
+        metrics = {k: np.mean(v) for k, v in metrics_lists.items()}
 
         return metrics

@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 from torch import nn
@@ -24,14 +24,13 @@ class WHARSampler(nn.Module, Sampleable):
         self,
         dataset_id: WHARDatasetID = WHARDatasetID.UCI_HAR,
         scv_group_index: int = 0,
-        transform=stft_transform_combine,
         subject_id: int | None = None,
     ):
         super().__init__()
 
         self.subject_id = subject_id
 
-        self.transform = transform
+        self.transform = stft_transform_combine
         self.dummy = nn.Buffer(torch.zeros(1))
 
         self.cfg = get_whar_cfg(dataset_id)
@@ -104,7 +103,7 @@ class WHARSampler(nn.Module, Sampleable):
     def get_shape(self) -> List[int]:
         return list(self.sample(1)[0][0].shape)
 
-    def get_class_weights(self, indices: List[int]) -> dict:
+    def get_class_weights(self, indices: List[int]) -> Dict[int, float]:
         return self.sampler.get_class_weights(indices)
 
     def get_num_classes(self, indices: List[int]) -> int:
