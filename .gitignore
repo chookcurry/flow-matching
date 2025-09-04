@@ -2,10 +2,10 @@
 **/__pycache__/
 .mypy_cache
 
-data/
-**/data/
+.env
 
-.aim
+datasets
 
 multirun
-datasets
+.aim
+wandb

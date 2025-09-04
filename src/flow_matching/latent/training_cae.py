@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from torch import Tensor, vmap
-from aim import Run  # type: ignore
+from wandb import Run
 from torch.utils.data import DataLoader
 from torch.optim import Optimizer, Adam
 
@@ -68,7 +68,6 @@ class CAETrainer:
         val_loader: DataLoader[Tuple[Tensor, Tensor]],
         eta: float,
         null_class: int,
-        track: bool = False,
     ) -> None:
         super().__init__()
 
@@ -84,12 +83,6 @@ class CAETrainer:
         self.loss_fn = loss_fn
         self.train_loader.collate_fn = collate_fn
         self.val_loader.collate_fn = collate_fn
-
-        self.run = (
-            Run(log_system_params=False, system_tracking_interval=None)
-            if track
-            else None
-        )
 
         self.optimizer = self.get_optimizer()
 
@@ -142,7 +135,9 @@ class CAETrainer:
             "time_mae": time_mae.item(),
         }
 
-    def train(self, num_epochs: int, device: torch.device, lr: float = 1e-3) -> None:
+    def train(
+        self, num_epochs: int, device: torch.device, lr: float, run: Run | None
+    ) -> None:
         # Report model size
         size_b = model_size_b(self.model)
         logger.info(f"Training model with size: {size_b / MiB:.3f} MiB")
@@ -164,15 +159,14 @@ class CAETrainer:
                 optimizer.zero_grad()
                 loss = self.get_train_loss(batch, device)
 
-                if self.run:
-                    self.run.track(loss.item(), name="train/loss")
-
                 if loss.isnan():
                     continue
 
+                run.log({"train/loss": loss}) if run else None
+                pbar.set_description(f"Epoch {epoch}, Loss: {loss.item():.3f}")
+
                 loss.backward()
                 optimizer.step()
-                pbar.set_description(f"Epoch {epoch}, Loss: {loss.item():.3f}")
 
             # val loop
             self.model.eval()
@@ -187,9 +181,5 @@ class CAETrainer:
                     metrics_lists.setdefault(k, []).append(v)
 
             metrics = {k: float(np.mean(v)) for k, v in metrics_lists.items()}
-
             logger.info([f"{key}: {value:.3f}" for key, value in metrics.items()])
-
-            if self.run:
-                for k, v in metrics.items():
-                    self.run.track(v, name=f"val/{k}")
+            run.log({f"val/{k}": v for k, v in metrics.items()}) if run else None

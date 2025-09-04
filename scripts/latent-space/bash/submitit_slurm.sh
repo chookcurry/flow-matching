@@ -1,1 +1,1 @@
-python scripts/train_cae.py --multirun hydra/launcher=submitit_slurm launcher=slurm
+python scripts/latent-space/train.py  --multirun hydra/launcher=submitit_slurm launcher=slurm
