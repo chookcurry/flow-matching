@@ -66,28 +66,28 @@ def run_script(cfg: DictConfig) -> None:
     num_classes = len(dataset.get_class_weights(train_loader))
 
     # Initialize model
-    cae: AE | CAE | AEC | CAEC
+    ae: AE | CAE | AEC | CAEC
     match cfg.model.architecure:
         case "ae":
-            cae = SpectrogramAE(
+            ae = SpectrogramAE(
                 spect_c=cfg.model.spect_n_channels,
                 latent_c=cfg.model.latent_n_channels,
             )
         case "aec":
-            cae = SpectrogramAEC(
+            ae = SpectrogramAEC(
                 spect_c=cfg.model.spect_n_channels,
                 latent_c=cfg.model.latent_n_channels,
             )
         case "cae":
-            cae = SpectrogramCAE(latent_c=cfg.model.latent_n_channels)
+            ae = SpectrogramCAE(latent_c=cfg.model.latent_n_channels)
         case "caec":
-            cae = SpectrogramCAEC(latent_c=cfg.model.latent_n_channels)
+            ae = SpectrogramCAEC(latent_c=cfg.model.latent_n_channels)
         case _:
             raise NotImplementedError
 
     # Initialize trainer
     trainer = CAETrainer(
-        model=cae,
+        model=ae,
         train_loader=train_loader,
         val_loader=val_loader,
         eta=(1 / num_classes),
@@ -96,7 +96,7 @@ def run_script(cfg: DictConfig) -> None:
 
     # Initialize wandb run
     run = wandb.init(
-        project="latent-space",
+        project=cfg.wandb.project,
         job_type="train",
         name=run_id,
         config=OmegaConf.to_container(cfg, resolve=True),  # type: ignore
@@ -110,12 +110,12 @@ def run_script(cfg: DictConfig) -> None:
         run=run,
     )
 
-    # Save model
-    model_path = f"{output_dir}/ae.pt"
-    torch.save(cae.state_dict(), model_path)
+    # Save autoencoder
+    ae_path = f"{output_dir}/ae.pt"
+    torch.save(ae.state_dict(), ae_path)
 
-    # Log model
-    run.log_artifact(model_path, name="ae", type="model")
+    # Log autoencoder
+    run.log_artifact(ae_path, name="ae", type="model")
     run.finish()
 
     # Clean up

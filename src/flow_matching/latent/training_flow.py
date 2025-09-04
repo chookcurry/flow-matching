@@ -1,11 +1,10 @@
-from typing import Any, Callable, Dict, List
+from typing import Any, Dict, List
 
 import numpy as np
 import torch
-from torch import Tensor
 from flow_matching.evaluation.f1 import f1_score, precision_recall_knn
 from flow_matching.evaluation.kid import kernel_inception_distance_poly_biased
-from flow_matching.latent.autoencoder import CAE
+from flow_matching.latent.autoencoder import AE, AEC, CAE, CAEC
 from flow_matching.supervised.odes_sdes import CFGVectorFieldODE, ConditionalVectorField
 from flow_matching.supervised.prob_paths import ConditionalProbabilityPath
 from flow_matching.supervised.simulators import RK4Simulator
@@ -21,14 +20,15 @@ class LatentFlowTrainer(Trainer):
         self,
         path: ConditionalProbabilityPath,
         model: ConditionalVectorField,
-        ae: CAE,
+        ae: AE | CAE | AEC | CAEC,
         eta: float,
         null_class: int,
         num_classes: int,
-        sample_time: Callable[[int], Tensor] = sample_time_logit_normal,
-        track: bool = False,
+        guidance_scale: float = 2.0,
+        num_timesteps: int = 100,
+        num_samples: int = 40,
     ):
-        super().__init__(model, track)
+        super().__init__(model)
 
         assert eta > 0 and eta < 1
 
@@ -37,6 +37,10 @@ class LatentFlowTrainer(Trainer):
         self.eta = eta
         self.null_class = null_class
         self.num_classes = num_classes
+        self.guidance_scale = guidance_scale
+        self.num_timesteps = num_timesteps
+        self.num_samples = num_samples
+
         self.sample_time = sample_time_uniform
 
         for param in self.ae.parameters():
@@ -51,7 +55,11 @@ class LatentFlowTrainer(Trainer):
 
         # encode z to latent space
         with torch.no_grad():
-            batch_z = self.ae.encode(batch_z, batch_y)
+            batch_z = (
+                self.ae.encode(batch_z)
+                if isinstance(self.ae, (AE, AEC))
+                else self.ae.encode(batch_z, batch_y)
+            )
 
         # Step 2: Set each label to null class with probability eta
         mask = torch.rand(batch_size) < self.eta
@@ -71,34 +79,35 @@ class LatentFlowTrainer(Trainer):
     def get_val_metrics(
         self,
         device: torch.device,
-        guidance_scale: float = 2.0,
-        num_timesteps: int = 100,
-        num_samples: int = 40,  # 100
     ) -> Any:
         ode = CFGVectorFieldODE(
-            self.model, guidance_scale=guidance_scale, null_class=self.null_class
+            self.model, guidance_scale=self.guidance_scale, null_class=self.null_class
         )
 
         simulator = RK4Simulator(ode)
 
         ts = (
-            torch.linspace(0, 1, num_timesteps)
+            torch.linspace(0, 1, self.num_timesteps)
             .view(1, -1, 1, 1, 1)
-            .expand(num_samples, -1, 1, 1, 1)
+            .expand(self.num_samples, -1, 1, 1, 1)
             .to(device)
         )
 
         metrics_lists: Dict[str, List[float]] = {}
 
         for label in range(self.num_classes):
-            batch_z, batch_y = self.path.p_data.sample(num_samples, label)
+            batch_z, batch_y = self.path.p_data.sample(self.num_samples, label)
             assert batch_y is not None
 
             batch_z, batch_y = batch_z.to(device), batch_y.to(device)
 
-            batch_z = self.ae.encode(batch_z, batch_y)
+            batch_z = (
+                self.ae.encode(batch_z)
+                if isinstance(self.ae, (AE, AEC))
+                else self.ae.encode(batch_z, batch_y)
+            )
 
-            batch_x0, _ = self.path.p_simple.sample(num_samples)
+            batch_x0, _ = self.path.p_simple.sample(self.num_samples)
             batch_x0 = batch_x0.to(device)
             batch_x1 = simulator.simulate(batch_x0, ts, batch_y)
 

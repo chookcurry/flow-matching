@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Callable, Dict
+from typing import Dict
 import torch
 from tqdm import tqdm
 from torch import Tensor
-from aim import Run
+from wandb import Run
 from torch.optim import Optimizer, Adam
 
 from flow_matching.supervised.odes_sdes import ConditionalVectorField
@@ -21,14 +21,9 @@ def sample_time_logit_normal(batch_size: int) -> torch.Tensor:
 
 
 class Trainer(ABC):
-    def __init__(self, model: ConditionalVectorField, track: bool = False):
+    def __init__(self, model: ConditionalVectorField):
         super().__init__()
         self.model = model
-        self.run = (
-            Run(log_system_params=False, system_tracking_interval=None)
-            if track
-            else None
-        )
         self.optimizer = self.get_optimizer()
 
     @abstractmethod
@@ -50,6 +45,7 @@ class Trainer(ABC):
         batch_size: int,
         lr: float = 1e-3,
         val_every_n_epochs: int = 1000,
+        run: Run | None = None,
     ) -> None:
         # Report model size
         size_b = model_size_b(self.model)
@@ -71,22 +67,18 @@ class Trainer(ABC):
             optimizer.zero_grad()
             loss = self.get_train_loss(batch_size=batch_size, device=device)
 
-            if self.run:
-                self.run.track(loss.item(), name="train_loss")
+            run.log({"train/loss": loss.item()}) if run else None
+            pbar.set_description(f"Epoch {epoch}, loss: {loss.item():.3f}")
 
             loss.backward()
             optimizer.step()
-            pbar.set_description(f"Epoch {epoch}, loss: {loss.item():.3f}")
 
             if epoch % val_every_n_epochs == 0:
                 self.model.eval()
 
                 metrics = self.get_val_metrics(device)
 
-                if self.run:
-                    for k, v in metrics.items():
-                        self.run.track(v, name=k)
-
+                run.log({"val/" + k: v for k, v in metrics.items()}) if run else None
                 logger.info(
                     f"Epoch {epoch},", *[f"{k}: {v:.3f}" for k, v in metrics.items()]
                 )
@@ -102,17 +94,15 @@ class FlowTrainer(Trainer):
         model: ConditionalVectorField,
         eta: float,
         null_class: int,
-        track: bool = False,
-        sample_time: Callable[[int], Tensor] = sample_time_logit_normal,
     ):
-        super().__init__(model, track)
+        super().__init__(model)
 
         assert eta > 0 and eta < 1
 
         self.eta = eta
         self.path = path
         self.null_class = null_class
-        self.sample_time = sample_time
+        self.sample_time = sample_time_uniform
 
     def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
         return {}

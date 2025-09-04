@@ -1,0 +1,32 @@
+defaults:
+  - launcher: local
+
+data:
+  dataset_id: uci_har
+  scv_group_index: 0
+  subject_id: 1
+
+autoencoder:
+  architecure: cae
+  spect_n_channels: 18
+  latent_n_channels: 24
+  latent_size: 8
+  id: test
+
+model:
+  architecure: transformer
+
+train:
+  batch_size: 32
+  num_epochs: 20000
+  learning_rate: 1e-3
+  seed: 0
+
+val:
+  val_every_n_epochs: 1000
+  guidance_scale: 2.
+  num_timesteps: 100
+  num_samples: 40
+
+wandb:
+  project: latent-generative-modeling
