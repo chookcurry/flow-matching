@@ -1,0 +1,18 @@
+defaults:
+  - launcher: local
+
+data:
+  dataset_id: uci_har
+  scv_group_index: 0
+
+model:
+  architecure: cae
+  spect_n_channels: 18
+  latent_n_channels: 24
+  latent_size: 8
+
+train:
+  batch_size: 32
+  num_epochs: 5
+  learning_rate: 1e-3
+  seed: 0

@@ -9,6 +9,7 @@ from torch.optim import Optimizer, Adam
 from flow_matching.supervised.odes_sdes import ConditionalVectorField
 from flow_matching.supervised.prob_paths import ConditionalProbabilityPath
 from flow_matching.utils.utils import model_size_b, MiB
+from flow_matching.utils.logging import logger
 
 
 def sample_time_uniform(batch_size: int) -> torch.Tensor:
@@ -52,7 +53,7 @@ class Trainer(ABC):
     ) -> None:
         # Report model size
         size_b = model_size_b(self.model)
-        print(f"Training model with size: {size_b / MiB:.3f} MiB")
+        logger.info(f"Training model with size: {size_b / MiB:.3f} MiB")
 
         # Start
         self.model.to(device)
@@ -86,7 +87,9 @@ class Trainer(ABC):
                     for k, v in metrics.items():
                         self.run.track(v, name=k)
 
-                print(f"Epoch {epoch},", *[f"{k}: {v:.3f}" for k, v in metrics.items()])
+                logger.info(
+                    f"Epoch {epoch},", *[f"{k}: {v:.3f}" for k, v in metrics.items()]
+                )
 
         # Finish
         self.model.eval()

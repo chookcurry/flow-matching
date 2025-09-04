@@ -1,4 +1,5 @@
 import math
+from typing import Tuple
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -35,14 +36,14 @@ class FiLMHead(nn.Module):
 
         self.n_channels = n_channels
 
-    def forward(self, cond: Tensor) -> Tensor:
+    def forward(self, cond: Tensor) -> Tuple[Tensor, Tensor]:
         # cond: (B, cond_dim)
-
-        gammas, betas = self.net(cond).chunk(2, dim=-1)  # (B, C), (B, C)
-        # Optional: start near identity
 
         gammas: Tensor
         betas: Tensor
+
+        gammas, betas = self.net(cond).chunk(2, dim=-1)  # (B, C), (B, C)
+        # Optional: start near identity
 
         return gammas, betas
 

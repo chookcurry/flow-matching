@@ -17,6 +17,7 @@ from flow_matching.whar.stft import (
     istft_transform,
     stft_transform,
 )
+from flow_matching.utils.logging import logger
 
 
 def transform(x: Tensor) -> Tensor:
@@ -144,7 +145,7 @@ class CAETrainer:
     def train(self, num_epochs: int, device: torch.device, lr: float = 1e-3) -> None:
         # Report model size
         size_b = model_size_b(self.model)
-        print(f"Training model with size: {size_b / MiB:.3f} MiB")
+        logger.info(f"Training model with size: {size_b / MiB:.3f} MiB")
 
         # Start
         self.model.to(device)
@@ -187,7 +188,7 @@ class CAETrainer:
 
             metrics = {k: float(np.mean(v)) for k, v in metrics_lists.items()}
 
-            print([f"{key}: {value:.3f}" for key, value in metrics.items()])
+            logger.info([f"{key}: {value:.3f}" for key, value in metrics.items()])
 
             if self.run:
                 for k, v in metrics.items():
