@@ -49,13 +49,14 @@ def run_script(cfg: DictConfig) -> None:
     log.info(OmegaConf.to_yaml(cfg))
 
     # Load dataset
-    dataset = PytorchAdapter(
-        get_whar_cfg(
-            WHARDatasetID(cfg.data.dataset_id),
-            datasets_dir="datasets",
-            cache_dir=cache_dir,
-        )
+    dataset_cfg = get_whar_cfg(
+        WHARDatasetID(cfg.data.dataset_id),
+        datasets_dir="datasets",
+        cache_dir=cache_dir,
     )
+    dataset_cfg.in_memory = True
+    dataset_cfg.in_parallel = False
+    dataset = PytorchAdapter(dataset_cfg)
 
     # Get dataloaders
     train_loader, val_loader, _ = dataset.get_dataloaders(

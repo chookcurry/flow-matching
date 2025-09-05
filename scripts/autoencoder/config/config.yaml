@@ -1,6 +1,3 @@
-defaults:
-  - launcher: local
-
 data:
   dataset_id: uci_har
   scv_group_index: 0
