@@ -1,3 +1,4 @@
+import json
 import os
 import hydra
 import torch
@@ -48,22 +49,17 @@ def run_script(cfg: DictConfig) -> None:
     log.info(f"output dir: {output_dir}")
     log.info(OmegaConf.to_yaml(cfg))
 
-    # Load dataset
-    dataset_cfg = get_whar_cfg(
-        WHARDatasetID(cfg.data.dataset_id),
-        datasets_dir="datasets",
-        cache_dir=cache_dir,
-    )
+    # Load and configure dataset
+    dataset_cfg = get_whar_cfg(WHARDatasetID(cfg.data.dataset_id), cache_dir=cache_dir)
+    dataset_cfg.seed = cfg.train.seed
     dataset_cfg.in_memory = True
     dataset_cfg.in_parallel = False
     dataset = PytorchAdapter(dataset_cfg)
 
     # Get dataloaders
-    train_loader, val_loader, _ = dataset.get_dataloaders(
+    train_loader, val_loader, test_loader = dataset.get_dataloaders(
         train_batch_size=cfg.train.batch_size, scv_group_index=cfg.data.scv_group_index
     )
-
-    # Get number of classes
     num_classes = len(dataset.get_class_weights(train_loader))
 
     # Initialize model
@@ -91,6 +87,7 @@ def run_script(cfg: DictConfig) -> None:
         model=ae,
         train_loader=train_loader,
         val_loader=val_loader,
+        test_loader=test_loader,
         eta=(1 / num_classes),
         null_class=num_classes,
     )
@@ -98,28 +95,35 @@ def run_script(cfg: DictConfig) -> None:
     # Initialize wandb run
     run = wandb.init(
         project=cfg.wandb.project,
-        job_type="train",
         name=run_id,
+        group=cfg.data.dataset_id,
         config=OmegaConf.to_container(cfg, resolve=True),  # type: ignore
+        job_type="train",
     )
 
     # Perform training
-    trainer.train(
+    ae_state_dict = trainer.train(
         num_epochs=cfg.train.num_epochs,
         device=device,
         lr=cfg.train.learning_rate,
+        patience=cfg.train.patience,
         run=run,
     )
 
-    # Save autoencoder
-    ae_path = f"{output_dir}/ae.pt"
-    torch.save(ae.state_dict(), ae_path)
+    # Perform and log eval
+    metrics_path = f"{output_dir}/metrics.json"
+    metrics = trainer.eval(device)
+    with open(metrics_path, "w") as f:
+        json.dump(metrics, f)
+    run.log_artifact(metrics_path, name="metrics", type="metrics")
 
-    # Log autoencoder
+    # Save and log autoencoder
+    ae_path = f"{output_dir}/ae.pt"
+    torch.save(ae_state_dict, ae_path)
     run.log_artifact(ae_path, name="ae", type="model")
-    run.finish()
 
     # Clean up
+    run.finish()
     shutil.rmtree(cache_dir)
 
 
