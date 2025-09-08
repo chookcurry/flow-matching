@@ -26,6 +26,17 @@ log = logging.getLogger(__name__)
 load_dotenv(".env")
 
 
+def make_model_name(cfg: DictConfig) -> str:
+    return "_".join(
+        [
+            cfg.model.architecure,  # e.g., cae
+            f"nc{cfg.model.spect_n_channels}",  # number of input channels
+            f"lc{cfg.model.latent_n_channels}",  # latent channels
+            f"ls{cfg.model.latent_size}",  # latent size
+        ]
+    )
+
+
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def run_script(cfg: DictConfig) -> None:
     # Login to wandb
@@ -39,9 +50,10 @@ def run_script(cfg: DictConfig) -> None:
     )
 
     # Set up run
-    run_id = HydraConfig.get().job.id
+    run_id = make_model_name(cfg)  # HydraConfig.get().job.id
     output_dir = HydraConfig.get().runtime.output_dir
-    cache_dir = f"{output_dir}/cache"
+    # cache_dir = f"{output_dir}/cache"
+    datasets_dir = os.environ["DATASETS_DIR"]
 
     # Log info
     log.info(f"device: {device}")
@@ -50,7 +62,7 @@ def run_script(cfg: DictConfig) -> None:
     log.info(OmegaConf.to_yaml(cfg))
 
     # Load and configure dataset
-    dataset_cfg = get_whar_cfg(WHARDatasetID(cfg.data.dataset_id), cache_dir=cache_dir)
+    dataset_cfg = get_whar_cfg(WHARDatasetID(cfg.data.dataset_id), datasets_dir)
     dataset_cfg.seed = cfg.train.seed
     dataset_cfg.in_memory = True
     dataset_cfg.in_parallel = False
@@ -124,7 +136,7 @@ def run_script(cfg: DictConfig) -> None:
 
     # Clean up
     run.finish()
-    shutil.rmtree(cache_dir)
+    # shutil.rmtree(cache_dir)
 
 
 if __name__ == "__main__":

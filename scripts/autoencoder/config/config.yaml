@@ -1,6 +1,7 @@
 data:
   dataset_id: uci_har
   scv_group_index: 0
+  datasets_dir: ${oc.env:DATASETS_DIR,datasets} # defaults to datasets, but replaced by DATASETS_DIR if set
 
 model:
   architecure: cae
@@ -10,10 +11,10 @@ model:
 
 train:
   batch_size: 32
-  num_epochs: 1
+  num_epochs: 100
   learning_rate: 1e-3
   patience: 5
   seed: 0
 
 wandb:
-  project: autoencoder
+  project: test # autoencoder

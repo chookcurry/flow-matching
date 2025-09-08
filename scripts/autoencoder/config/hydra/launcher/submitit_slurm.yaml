@@ -1,0 +1,9 @@
+defaults:
+  - submitit_slurm
+
+setup:
+  - echo "Preparing dataset ${data.dataset_id}"
+  - if [ ! -f ${data.datasets_dir}/${data.dataset_id}.tgz ]; then tar -cvzf ${data.datasets_dir}/${data.dataset_id}.tgz -C ${data.datasets_dir} ${data.dataset_id}; fi
+  - echo "Extracting dataset ${data.dataset_id} into $TMPDIR"
+  - tar -C $TMPDIR -xvzf ${data.datasets_dir}/${data.dataset_id}.tgz
+  - export DATASETS_DIR=$TMPDIR/datasets
