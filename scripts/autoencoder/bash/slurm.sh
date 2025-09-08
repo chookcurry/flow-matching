@@ -5,4 +5,4 @@ hydra.launcher.tasks_per_node=1 \
 hydra.launcher.gpus_per_node=1 \
 hydra.launcher.timeout_min=60 \
 model.architecure=cae \
-model.latent_n_channels=24
+model.num_channels_latent=24

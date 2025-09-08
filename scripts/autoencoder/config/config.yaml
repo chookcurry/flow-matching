@@ -5,9 +5,11 @@ data:
 
 model:
   architecure: cae
-  spect_n_channels: 18
-  latent_n_channels: 24
-  latent_size: 4
+  num_channels_spect: 18
+  num_channels_latent: 24
+  size_spect: 32
+  size_latent: 8
+  embedding_dim: 32
 
 train:
   batch_size: 32

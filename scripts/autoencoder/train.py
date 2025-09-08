@@ -1,4 +1,5 @@
 import json
+from math import log2
 import os
 import hydra
 import torch
@@ -8,7 +9,7 @@ from whar_datasets.adapters.pytorch import PytorchAdapter
 from whar_datasets.support.getter import WHARDatasetID, get_whar_cfg
 from flow_matching.latent.autoencoder import AE, AEC, CAE, CAEC
 from flow_matching.latent.training_cae import CAETrainer
-from flow_matching.whar.models.autoencoder import (
+from flow_matching.whar.models.autoencoder_dynamic import (
     SpectrogramAE,
     SpectrogramCAE,
     SpectrogramAEC,
@@ -30,9 +31,9 @@ def make_model_name(cfg: DictConfig) -> str:
     return "_".join(
         [
             cfg.model.architecure,  # e.g., cae
-            f"nc{cfg.model.spect_n_channels}",  # number of input channels
-            f"lc{cfg.model.latent_n_channels}",  # latent channels
-            f"ls{cfg.model.latent_size}",  # latent size
+            f"nc{cfg.model.num_channels_spect}",  # number of input channels
+            f"lc{cfg.model.num_channels_latent}",  # latent channels
+            f"ls{cfg.model.size_latent}",  # latent size
         ]
     )
 
@@ -54,13 +55,16 @@ def run_script(cfg: DictConfig) -> None:
     output_dir = HydraConfig.get().runtime.output_dir
     # cache_dir = f"{output_dir}/cache"
     datasets_dir = os.environ.get("DATASETS_DIR") or cfg.data.datasets_dir
+    num_downsamples = int(log2(cfg.model.size_spect / cfg.model.size_latent))
+    # cfg.model.size_latent * 2 ** num_downsamples == cfg.model.size_spect
 
     # Log info
     log.info(f"datasets_dir: {datasets_dir}")
     log.info(f"device: {device}")
     log.info(f"run id: {run_id}")
     log.info(f"output dir: {output_dir}")
-    log.info(OmegaConf.to_yaml(cfg))
+    log.info(f"cfg: {OmegaConf.to_yaml(cfg)}")
+    log.info(f"num_downsamples: {num_downsamples}")
 
     # Load and configure dataset
     dataset_cfg = get_whar_cfg(WHARDatasetID(cfg.data.dataset_id), datasets_dir)
@@ -80,26 +84,33 @@ def run_script(cfg: DictConfig) -> None:
     match cfg.model.architecure:
         case "ae":
             ae = SpectrogramAE(
-                spect_c=cfg.model.spect_n_channels,
-                latent_c=cfg.model.latent_n_channels,
+                num_channels_spect=cfg.model.num_channels_spect,
+                num_channels_latent=cfg.model.num_channels_latent,
+                num_downsamples=num_downsamples,
             )
         case "aec":
             ae = SpectrogramAEC(
-                spect_c=cfg.model.spect_n_channels,
-                latent_c=cfg.model.latent_n_channels,
+                num_channels_spect=cfg.model.num_channels_spect,
+                num_channels_latent=cfg.model.num_channels_latent,
                 num_classes=num_classes + 1,  # due to null class
+                embedding_dim=cfg.model.embedding_dim,
+                num_downsamples=num_downsamples,
             )
         case "cae":
             ae = SpectrogramCAE(
-                spect_c=cfg.model.spect_n_channels,
-                latent_c=cfg.model.latent_n_channels,
+                num_channels_spect=cfg.model.num_channels_spect,
+                num_channels_latent=cfg.model.num_channels_latent,
                 num_classes=num_classes + 1,  # due to null class
+                embedding_dim=cfg.model.embedding_dim,
+                num_downsamples=num_downsamples,
             )
         case "caec":
             ae = SpectrogramCAEC(
-                spect_c=cfg.model.spect_n_channels,
-                latent_c=cfg.model.latent_n_channels,
+                num_channels_spect=cfg.model.num_channels_spect,
+                num_channels_latent=cfg.model.num_channels_latent,
                 num_classes=num_classes + 1,  # due to null class
+                embedding_dim=cfg.model.embedding_dim,
+                num_downsamples=num_downsamples,
             )
         case _:
             raise NotImplementedError
