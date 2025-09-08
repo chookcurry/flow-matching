@@ -1,13 +1,13 @@
 data:
   dataset_id: uci_har
   scv_group_index: 0
-  datasets_dir: ${oc.env:DATASETS_DIR,datasets} # defaults to datasets, but replaced by DATASETS_DIR if set
+  datasets_dir: datasets
 
 model:
   architecure: cae
   spect_n_channels: 18
   latent_n_channels: 24
-  latent_size: 8
+  latent_size: 4
 
 train:
   batch_size: 32

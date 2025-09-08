@@ -53,9 +53,10 @@ def run_script(cfg: DictConfig) -> None:
     run_id = make_model_name(cfg)  # HydraConfig.get().job.id
     output_dir = HydraConfig.get().runtime.output_dir
     # cache_dir = f"{output_dir}/cache"
-    datasets_dir = os.environ["DATASETS_DIR"]
+    datasets_dir = os.environ["DATASETS_DIR"] # f"{os.environ['$TMPDIR']}/{cfg.data.datasets_dir}"
 
     # Log info
+    log.info(f"datasets_dir: {datasets_dir}")
     log.info(f"device: {device}")
     log.info(f"run id: {run_id}")
     log.info(f"output dir: {output_dir}")

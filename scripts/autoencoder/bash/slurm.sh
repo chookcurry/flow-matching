@@ -1,9 +1,8 @@
-python scripts/autoencoder/train.py --multirun hydra/launcher=submitit_slurm \
+python scripts/autoencoder/train.py --multirun hydra/launcher=slurm \
 hydra.launcher.partition=normal \
 hydra.launcher.nodes=1 \
 hydra.launcher.tasks_per_node=1 \
 hydra.launcher.gpus_per_node=1 \
-hydra.launcher.mem_per_gpu=12 \
 hydra.launcher.timeout_min=60 \
 model.architecure=cae \
 model.latent_n_channels=24
