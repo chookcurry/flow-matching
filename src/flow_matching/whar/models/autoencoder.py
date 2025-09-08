@@ -54,8 +54,10 @@ class ConditionalResidualBlock(nn.Module):
         super().__init__()
         self.norm1 = ConditionalGroupNorm(c, num_groups, embedding_dim)
         self.conv1 = nn.Conv2d(c, c, kernel_size=3, padding=1)
+
         self.norm2 = ConditionalGroupNorm(c, num_groups, embedding_dim)
         self.conv2 = nn.Conv2d(c, c, kernel_size=3, padding=1)
+
         self.relu = nn.ReLU()
 
     def forward(self, x: Tensor, embed: Tensor) -> Tensor:
@@ -75,7 +77,6 @@ class ConditionalResidualBlock(nn.Module):
 class Encoder(nn.Module):
     def __init__(self, in_c: int, latent_c: int):
         super().__init__()
-
         self.conv1 = nn.Conv2d(in_c, 32, kernel_size=4, stride=2, padding=1)
         self.resblock1 = nn.Sequential(ResidualBlock(32, 4), ResidualBlock(32, 4))
 
@@ -84,7 +85,6 @@ class Encoder(nn.Module):
 
         self.conv3 = nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1)
         self.resblock3 = nn.Sequential(ResidualBlock(128, 16), ResidualBlock(128, 16))
-
         self.z_proj = nn.Conv2d(128, latent_c, kernel_size=3, padding=1)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -245,7 +245,7 @@ class ConditionalDecoder(nn.Module):
 
 
 class SpectrogramAE(AE):
-    def __init__(self, spect_c: int = 18, latent_c: int = 64):
+    def __init__(self, spect_c: int, latent_c: int):
         super().__init__()
         self.encoder = Encoder(spect_c, latent_c)
         self.decoder = Decoder(spect_c, latent_c)
@@ -266,11 +266,7 @@ class SpectrogramAE(AE):
 
 class SpectrogramCAE(CAE):
     def __init__(
-        self,
-        spect_c: int = 18,
-        latent_c: int = 64,
-        num_classes: int = 6,
-        embedding_dim: int = 32,
+        self, spect_c: int, latent_c: int, num_classes: int, embedding_dim: int = 32
     ):
         super().__init__()
         self.encoder = ConditionalEncoder(spect_c, latent_c, num_classes, embedding_dim)
@@ -292,11 +288,7 @@ class SpectrogramCAE(CAE):
 
 class SpectrogramAEC(AEC):
     def __init__(
-        self,
-        spect_c: int = 18,
-        latent_c: int = 64,
-        num_classes: int = 6,
-        embedding_dim: int = 32,
+        self, spect_c: int, latent_c: int, num_classes: int, embedding_dim: int = 32
     ):
         super().__init__()
         self.encoder = Encoder(spect_c, latent_c)
@@ -318,11 +310,7 @@ class SpectrogramAEC(AEC):
 
 class SpectrogramCAEC(CAEC):
     def __init__(
-        self,
-        spect_c: int = 18,
-        latent_c: int = 64,
-        num_classes: int = 6,
-        embedding_dim: int = 32,
+        self, spect_c: int, latent_c: int, num_classes: int, embedding_dim: int = 32
     ):
         super().__init__()
         self.encoder = ConditionalEncoder(spect_c, latent_c, num_classes, embedding_dim)

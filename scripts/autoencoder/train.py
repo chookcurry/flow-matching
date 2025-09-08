@@ -53,7 +53,7 @@ def run_script(cfg: DictConfig) -> None:
     run_id = make_model_name(cfg)  # HydraConfig.get().job.id
     output_dir = HydraConfig.get().runtime.output_dir
     # cache_dir = f"{output_dir}/cache"
-    datasets_dir = os.environ["DATASETS_DIR"] # f"{os.environ['$TMPDIR']}/{cfg.data.datasets_dir}"
+    datasets_dir = os.environ.get("DATASETS_DIR") or cfg.data.datasets_dir
 
     # Log info
     log.info(f"datasets_dir: {datasets_dir}")
@@ -87,11 +87,20 @@ def run_script(cfg: DictConfig) -> None:
             ae = SpectrogramAEC(
                 spect_c=cfg.model.spect_n_channels,
                 latent_c=cfg.model.latent_n_channels,
+                num_classes=num_classes + 1,  # due to null class
             )
         case "cae":
-            ae = SpectrogramCAE(latent_c=cfg.model.latent_n_channels)
+            ae = SpectrogramCAE(
+                spect_c=cfg.model.spect_n_channels,
+                latent_c=cfg.model.latent_n_channels,
+                num_classes=num_classes + 1,  # due to null class
+            )
         case "caec":
-            ae = SpectrogramCAEC(latent_c=cfg.model.latent_n_channels)
+            ae = SpectrogramCAEC(
+                spect_c=cfg.model.spect_n_channels,
+                latent_c=cfg.model.latent_n_channels,
+                num_classes=num_classes + 1,  # due to null class
+            )
         case _:
             raise NotImplementedError
 
