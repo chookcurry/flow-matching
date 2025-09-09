@@ -84,6 +84,7 @@ class CAETrainer:
         self.loss_fn = loss_fn
         self.train_loader.collate_fn = collate_fn
         self.val_loader.collate_fn = collate_fn
+        self.test_loader.collate_fn = collate_fn
 
         self.optimizer = self.get_optimizer()
 
@@ -211,19 +212,12 @@ class CAETrainer:
     @torch.no_grad()
     def eval(self, device: torch.device) -> Dict[str, float]:
         self.model.eval()
-        metrics_list: Dict[str, List[float]] = {}
 
-        pbar = tqdm(self.train_loader)
-        for batch in pbar:
-            loss, metrics = self.get_val_loss_and_metrics(batch, device)
+        # Collect all inputs and labels and concatenate
+        x = torch.cat([x for x, _ in self.test_loader], dim=0).to(device)
+        y = torch.cat([y for _, y in self.test_loader], dim=0).to(device)
 
-            if loss.isnan():
-                continue
+        _, metrics = self.get_val_loss_and_metrics((x, y), device)
 
-            for key, value in metrics.items():
-                metrics_list.setdefault(key, []).append(value)
-
-        metrics = {k: sum(v) / len(v) for k, v in metrics_list.items()}
         logger.info([f"{key}: {value:.6f}" for key, value in metrics.items()])
-
         return metrics
