@@ -1,6 +1,12 @@
 defaults:
   - submitit_slurm
 
+partition: normal 
+nodes: 1
+tasks_per_node: 1
+gpus_per_node: 1
+timeout_min: 180
+
 setup:
   - echo "Preparing dataset ${data.dataset_id}"
   - if [ ! -f ${data.datasets_dir}/${data.dataset_id}.tgz ]; then tar -cvzf ${data.datasets_dir}/${data.dataset_id}.tgz -C ${data.datasets_dir} ${data.dataset_id}; fi

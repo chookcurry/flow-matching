@@ -57,7 +57,7 @@ def run_script(cfg: DictConfig) -> None:
     datasets_dir = os.environ.get("DATASETS_DIR") or cfg.data.datasets_dir
     num_downsamples = int(log2(cfg.model.size_spect / cfg.model.size_latent))
     # cfg.model.size_latent * 2 ** num_downsamples == cfg.model.size_spect
-    config_dict: dict = OmegaConf.to_container(cfg, resolve=True)  # type: ignore
+    cfg_dict: dict = OmegaConf.to_container(cfg, resolve=True)  # type: ignore
 
     # Log info
     log.info(f"datasets_dir: {datasets_dir}")
@@ -131,7 +131,7 @@ def run_script(cfg: DictConfig) -> None:
         project=cfg.wandb.project,
         name=run_id,
         group=cfg.data.dataset_id,
-        config=config_dict,
+        config=cfg_dict,
         job_type="train",
     )
 
@@ -161,7 +161,7 @@ def run_script(cfg: DictConfig) -> None:
     # Save and log config
     cfg_path = f"{output_dir}/config.json"
     with open(cfg_path, "w") as f:
-        json.dump(config_dict, f)
+        json.dump(cfg_dict, f)
     run.log_artifact(cfg_path, name=f"config_{run_id}", type="config")
 
     # Clean up
