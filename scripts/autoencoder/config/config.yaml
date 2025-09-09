@@ -5,10 +5,10 @@ data:
 
 model:
   architecure: cae
-  num_channels_spect: 18
-  num_channels_latent: 24
   size_spect: 32
-  size_latent: 8
+  num_channels_spect: 18
+  size_latent: 4
+  num_channels_latent: 24
   embedding_dim: 32
 
 train:
@@ -19,4 +19,4 @@ train:
   seed: 0
 
 wandb:
-  project: test # autoencoder
+  project: latent
