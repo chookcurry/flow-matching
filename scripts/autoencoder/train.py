@@ -57,13 +57,14 @@ def run_script(cfg: DictConfig) -> None:
     datasets_dir = os.environ.get("DATASETS_DIR") or cfg.data.datasets_dir
     num_downsamples = int(log2(cfg.model.size_spect / cfg.model.size_latent))
     # cfg.model.size_latent * 2 ** num_downsamples == cfg.model.size_spect
+    config_dict: dict = OmegaConf.to_container(cfg, resolve=True)  # type: ignore
 
     # Log info
     log.info(f"datasets_dir: {datasets_dir}")
     log.info(f"device: {device}")
     log.info(f"run id: {run_id}")
     log.info(f"output dir: {output_dir}")
-    log.info(f"cfg: {OmegaConf.to_yaml(cfg)}")
+    log.info(f"cfg: {OmegaConf.to_yaml(cfg, resolve=True)}")
     log.info(f"num_downsamples: {num_downsamples}")
 
     # Load and configure dataset
@@ -130,7 +131,7 @@ def run_script(cfg: DictConfig) -> None:
         project=cfg.wandb.project,
         name=run_id,
         group=cfg.data.dataset_id,
-        config=OmegaConf.to_container(cfg, resolve=True),  # type: ignore
+        config=config_dict,
         job_type="train",
     )
 
@@ -143,17 +144,25 @@ def run_script(cfg: DictConfig) -> None:
         run=run,
     )
 
-    # Perform and log eval
-    metrics_path = f"{output_dir}/metrics.json"
+    # Perform eval
     metrics = trainer.eval(device)
-    with open(metrics_path, "w") as f:
-        json.dump(metrics, f)
-    run.log_artifact(metrics_path, name="metrics", type="metrics")
 
     # Save and log autoencoder
     ae_path = f"{output_dir}/ae.pt"
     torch.save(ae_state_dict, ae_path)
-    run.log_artifact(ae_path, name="ae", type="model")
+    run.log_artifact(ae_path, name=f"model_{run_id}", type="model")
+
+    # save and log metrics
+    metrics_path = f"{output_dir}/metrics.json"
+    with open(metrics_path, "w") as f:
+        json.dump(metrics, f)
+    run.log_artifact(metrics_path, name=f"metrics_{run_id}", type="metrics")
+
+    # Save and log config
+    cfg_path = f"{output_dir}/config.json"
+    with open(cfg_path, "w") as f:
+        json.dump(config_dict, f)
+    run.log_artifact(cfg_path, name=f"config_{run_id}", type="config")
 
     # Clean up
     run.finish()

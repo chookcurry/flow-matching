@@ -12,7 +12,7 @@ model:
   embedding_dim: 32
 
 train:
-  batch_size: 32
+  batch_size: 128
   num_epochs: 100
   learning_rate: 1e-3
   patience: 5
