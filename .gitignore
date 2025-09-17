@@ -9,3 +9,5 @@ datasets
 multirun
 .aim
 wandb
+
+.vscode
