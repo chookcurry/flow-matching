@@ -135,7 +135,7 @@ def run_script(cfg: DictConfig) -> None:
         device=device,
         batch_size=cfg.train.batch_size,
         lr=cfg.train.learning_rate,
-        val_every_n_epochs=cfg.val.val_every_n_epochs,
+        steps_per_epoch=cfg.val.val_every_n_epochs,
         run=run,
     )
 

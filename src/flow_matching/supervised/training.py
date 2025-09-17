@@ -4,20 +4,11 @@ import torch
 from tqdm import tqdm
 from torch import Tensor
 from wandb import Run
-from torch.optim import Optimizer, Adam
+from torch.optim import Optimizer, AdamW
 
 from flow_matching.supervised.odes_sdes import ConditionalVectorField
-from flow_matching.supervised.prob_paths import ConditionalProbabilityPath
-from flow_matching.utils.utils import model_size_b, MiB
+from flow_matching.utils.utils import AverageMeter, model_size_b, MiB
 from flow_matching.utils.logging import logger
-
-
-def sample_time_uniform(batch_size: int) -> torch.Tensor:
-    return torch.rand(batch_size, 1, 1, 1)
-
-
-def sample_time_logit_normal(batch_size: int) -> torch.Tensor:
-    return torch.sigmoid(torch.normal(0.0, 0.6, size=(batch_size, 1, 1, 1)))
 
 
 class Trainer(ABC):
@@ -26,17 +17,8 @@ class Trainer(ABC):
         self.model = model
         self.optimizer = self.get_optimizer()
 
-    @abstractmethod
-    def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
-        pass
-
-    @abstractmethod
-    @torch.no_grad()
-    def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
-        pass
-
     def get_optimizer(self, lr: float = 1e-3) -> Optimizer:
-        return Adam(self.model.parameters(), lr=lr)
+        return AdamW(self.model.parameters(), lr=lr)
 
     def train(
         self,
@@ -44,7 +26,7 @@ class Trainer(ABC):
         device: torch.device,
         batch_size: int,
         lr: float = 1e-3,
-        val_every_n_epochs: int = 1000,
+        steps_per_epoch: int = 1000,
         run: Run | None = None,
     ) -> None:
         # Report model size
@@ -59,71 +41,65 @@ class Trainer(ABC):
             else self.get_optimizer(lr)
         )
 
-        # Train loop
-        pbar = tqdm(range(num_epochs))
-        for epoch in pbar:
+        # Early stopping setup
+        # best_val_loss = float("inf")
+        # current_val_loss = float("inf")
+        # best_model_state = self.model.state_dict()
+        # patience_counter = 0
+
+        losses = AverageMeter()
+
+        for epoch in range(num_epochs):
             self.model.train()
+            losses.reset()
 
-            optimizer.zero_grad()
-            loss = self.get_train_loss(batch_size=batch_size, device=device)
+            pbar = tqdm(range(steps_per_epoch))
+            pbar.set_description(f"Epoch {epoch}/{num_epochs}")
 
-            run.log({"train/loss": loss.item()}) if run else None
-            pbar.set_description(f"Epoch {epoch}, loss: {loss.item():.3f}")
+            for _ in pbar:
+                optimizer.zero_grad()
+                loss = self.get_train_loss(batch_size=batch_size, device=device)
 
-            loss.backward()
-            optimizer.step()
+                run.log({"train/loss": loss.item()}) if run else None
+                losses.update(loss.item())
+                pbar.set_postfix(loss=f"{losses.avg:.6f}")
 
-            if epoch % val_every_n_epochs == 0:
-                self.model.eval()
+                loss.backward()
+                optimizer.step()
 
-                metrics = self.get_val_metrics(device)
+            self.model.eval()
+            metrics = self.get_val_metrics(device)
+            logger.info([f"{key}: {value:.6f}" for key, value in metrics.items()])
+            run.log({f"val/{k}": v for k, v in metrics.items()}) if run else None
 
-                run.log({"val/" + k: v for k, v in metrics.items()}) if run else None
-                logger.info(
-                    f"Epoch {epoch},", *[f"{k}: {v:.3f}" for k, v in metrics.items()]
-                )
+        #     current_val_loss = float(loss.item())
+        #     if current_val_loss < best_val_loss:
+        #         best_val_loss = current_val_loss
+        #         best_model_state = self.model.state_dict()
+        #         patience_counter = 0
+        #     else:
+        #         patience_counter += 1
 
-        # Finish
-        self.model.eval()
+        #     if patience_counter >= patience:
+        #         logger.info(f"Early stopping triggered at epoch {epoch}/{num_epochs}")
+        #         break
 
+        # self.model.load_state_dict(best_model_state)
+        # return best_model_state
 
-class FlowTrainer(Trainer):
-    def __init__(
-        self,
-        path: ConditionalProbabilityPath,
-        model: ConditionalVectorField,
-        eta: float,
-        null_class: int,
-    ):
-        super().__init__(model)
-
-        assert eta > 0 and eta < 1
-
-        self.eta = eta
-        self.path = path
-        self.null_class = null_class
-        self.sample_time = sample_time_uniform
-
-    def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
-        return {}
-
+    @abstractmethod
     def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
-        # Step 1: Sample z,y from p_data
-        batch_z, batch_y = self.path.p_data.sample(batch_size)
-        assert batch_y is not None
+        pass
 
-        batch_z, batch_y = batch_z.to(device), batch_y.to(device)
+    @abstractmethod
+    @torch.no_grad()
+    def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
+        pass
 
-        # Step 2: Set each label to null class with probability eta
-        mask = torch.rand(batch_size) < self.eta
-        batch_y[mask] = self.null_class
 
-        # Step 3: Sample t and x
-        batch_t = self.sample_time(batch_size).to(device)
-        batch_x = self.path.sample_conditional_path(batch_z, batch_t)
+def sample_time_uniform(batch_size: int) -> torch.Tensor:
+    return torch.rand(batch_size, 1, 1, 1)
 
-        # Step 4: Regress and output loss
-        pred = self.model(batch_x, batch_t, batch_y)
-        ref = self.path.conditional_vector_field(batch_x, batch_z, batch_t)
 
-        return torch.mean((pred - ref) ** 2)
+def sample_time_logit_normal(batch_size: int) -> torch.Tensor:
+    return torch.sigmoid(torch.normal(0.0, 0.6, size=(batch_size, 1, 1, 1)))
