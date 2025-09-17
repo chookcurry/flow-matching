@@ -162,7 +162,7 @@ class DiT(ConditionalVectorField):
         self.time_mlp = nn.Sequential(
             nn.Linear(time_dim, embed_dim), nn.SiLU(), nn.Linear(embed_dim, embed_dim)
         )
-        self.class_embed = nn.Embedding(num_classes, embed_dim)
+        self.class_embed = nn.Embedding(num_classes + 1, embed_dim)
 
         # transformer blocks
         self.blocks = nn.ModuleList(

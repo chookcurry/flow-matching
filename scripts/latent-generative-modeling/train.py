@@ -7,7 +7,7 @@ from flow_matching.latent.autoencoder import AE, AEC, CAE, CAEC
 from flow_matching.supervised.alphas_betas import LinearAlpha, LinearBeta
 from flow_matching.supervised.odes_sdes import ConditionalVectorField
 from flow_matching.supervised.prob_paths import GaussianConditionalProbabilityPath
-from flow_matching.whar.models.autoencoder import (
+from flow_matching.whar.autoencoder.autoencoder import (
     SpectrogramAE,
     SpectrogramCAE,
     SpectrogramAEC,
@@ -17,8 +17,8 @@ from hydra.core.hydra_config import HydraConfig
 import shutil
 import wandb
 from dotenv import load_dotenv
-from flow_matching.whar.models.latent_cnn import FiLMNetMultiBlock
-from flow_matching.whar.models.latent_transformer import FlowTransformerBackbone
+from flow_matching.whar.latent_model.latent_cnn import FiLMNetMultiBlock
+from flow_matching.whar.latent_model.latent_transformer import FlowTransformerBackbone
 from flow_matching.whar.sampler import WHARSampler
 from flow_matching.latent.training_flow import LatentFlowTrainer
 
@@ -66,18 +66,30 @@ def run_script(cfg: DictConfig) -> None:
     match cfg.model.architecure:
         case "ae":
             ae = SpectrogramAE(
-                spect_c=cfg.model.spect_n_channels,
-                latent_c=cfg.model.latent_n_channels,
+                num_channels_spect=cfg.model.spect_n_channels,
+                num_channels_latent=cfg.model.latent_n_channels,
             )
         case "aec":
             ae = SpectrogramAEC(
-                spect_c=cfg.model.spect_n_channels,
-                latent_c=cfg.model.latent_n_channels,
+                num_channels_spect=cfg.model.spect_n_channels,
+                num_channels_latent=cfg.model.latent_n_channels,
+                num_classes=num_classes,
+                embedding_dim=cfg.model.embedding_dim,
             )
         case "cae":
-            ae = SpectrogramCAE(latent_c=cfg.model.latent_n_channels)
+            ae = SpectrogramCAE(
+                num_channels_spect=cfg.model.spect_n_channels,
+                num_channels_latent=cfg.model.latent_n_channels,
+                num_classes=num_classes,
+                embedding_dim=cfg.model.embedding_dim,
+            )
         case "caec":
-            ae = SpectrogramCAEC(latent_c=cfg.model.latent_n_channels)
+            ae = SpectrogramCAEC(
+                num_channels_spect=cfg.model.spect_n_channels,
+                num_channels_latent=cfg.model.latent_n_channels,
+                num_classes=num_classes,
+                embedding_dim=cfg.model.embedding_dim,
+            )
         case _:
             raise NotImplementedError
 
