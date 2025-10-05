@@ -2,9 +2,10 @@ import torch
 from torchvision import datasets, transforms  # type: ignore
 from torch import nn
 from typing import Dict, List, Optional, Tuple
-
-from flow_matching.supervised.samplers import Sampleable
 import ssl
+
+from flow_matching.supervised.sampleables import Sampleable
+
 
 ssl._create_default_https_context = ssl._create_unverified_context
 

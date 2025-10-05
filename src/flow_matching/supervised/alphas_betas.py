@@ -4,6 +4,8 @@ import torch
 from torch import Tensor
 from torch.func import vmap, jacrev
 
+from flow_matching.supervised.odes_sdes import Backbone
+
 
 class Alpha(ABC):
     def __init__(self) -> None:
@@ -83,3 +85,19 @@ class LinearBeta(Beta):
         # (B, 1, 1, 1)
 
         return dt
+
+
+class ScoreFromVectorFieldForGaussianProbPath(Backbone):
+    def __init__(self, vf: Backbone, alpha: Alpha, beta: Beta) -> None:
+        super().__init__()
+        self.vf = vf
+        self.alpha = alpha
+        self.beta = beta
+
+    def forward(self, x: Tensor, t: Tensor, y: Tensor) -> Tensor:
+        pred: Tensor = self.vf(x, t, y)
+        numerator = self.alpha(t) * pred - self.alpha.dt(t) * x
+        denominator = self.beta(t) ** 2 * self.alpha.dt(t) - self.alpha(
+            t
+        ) * self.beta.dt(t) * self.beta(t)
+        return numerator / denominator

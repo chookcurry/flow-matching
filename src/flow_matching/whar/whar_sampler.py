@@ -7,7 +7,7 @@ from whar_datasets.support.getter import WHARDatasetID, get_whar_cfg
 from whar_datasets.core.splitting import split_indices
 from whar_datasets.adapters.sampler import Sampler
 
-from flow_matching.supervised.samplers import Sampleable
+from flow_matching.supervised.sampleables import Sampleable
 from flow_matching.whar.stft import compress_stft, stft_transform
 
 

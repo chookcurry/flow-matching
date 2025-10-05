@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 from typing import Tuple
 from torch import Tensor, nn, randn_like
 
-from flow_matching.supervised.samplers import IsotropicGaussian
+from flow_matching.supervised.sampleables import IsotropicGaussian
 from flow_matching.supervised.alphas_betas import Alpha, Beta
-from flow_matching.supervised.samplers import Sampleable
+from flow_matching.supervised.sampleables import Sampleable
 
 
 class CondProbPath(nn.Module, ABC):
