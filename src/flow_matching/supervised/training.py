@@ -6,13 +6,21 @@ from torch import Tensor
 from wandb import Run
 from torch.optim import Optimizer, AdamW
 
-from flow_matching.supervised.odes_sdes import ConditionalVectorField
+from flow_matching.supervised.odes_sdes import Backbone
 from flow_matching.utils.utils import AverageMeter, model_size_b, MiB
 from flow_matching.utils.logging import logger
 
 
+def sample_time_uniform(batch_size: int) -> Tensor:
+    return torch.rand(batch_size, 1, 1, 1)
+
+
+def sample_time_logit_normal(batch_size: int) -> Tensor:
+    return torch.sigmoid(torch.normal(0.0, 0.6, size=(batch_size, 1, 1, 1)))
+
+
 class Trainer(ABC):
-    def __init__(self, model: ConditionalVectorField):
+    def __init__(self, model: Backbone):
         super().__init__()
         self.model = model
         self.optimizer = self.get_optimizer()
@@ -95,11 +103,3 @@ class Trainer(ABC):
     @torch.no_grad()
     def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
         pass
-
-
-def sample_time_uniform(batch_size: int) -> torch.Tensor:
-    return torch.rand(batch_size, 1, 1, 1)
-
-
-def sample_time_logit_normal(batch_size: int) -> torch.Tensor:
-    return torch.sigmoid(torch.normal(0.0, 0.6, size=(batch_size, 1, 1, 1)))

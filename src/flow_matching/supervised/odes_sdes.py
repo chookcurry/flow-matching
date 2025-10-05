@@ -1,94 +1,66 @@
 from abc import ABC, abstractmethod
 
 import torch
-from torch import nn
+from torch import Tensor, nn
 
 
 class ODE(ABC):
     @abstractmethod
-    def drift_coefficient(
-        self, xt: torch.Tensor, t: torch.Tensor, y: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Returns the drift coefficient of the ODE.
-        Args:
-            - xt: state at time t, shape (bs, c, h, w)
-            - t: time, shape (bs, 1)
-        Returns:
-            - drift_coefficient: shape (bs, c, h, w)
-        """
+    def drift_coeff(self, x_t: Tensor, t: Tensor, y: Tensor) -> Tensor:
+        # x_t: (B, C, H, W)
+        # t: (B, 1, 1, 1)
+        # y: (B, 1, 1, 1)
+        # drift: (B, C, H, W)
         pass
 
 
 class SDE(ABC):
     @abstractmethod
-    def drift_coefficient(
-        self, xt: torch.Tensor, t: torch.Tensor, y: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Returns the drift coefficient of the ODE.
-        Args:
-            - xt: state at time t, shape (bs, c, h, w)
-            - t: time, shape (bs, 1, 1, 1)
-        Returns:
-            - drift_coefficient: shape (bs, c, h, w)
-        """
+    def drift_coeff(self, x_t: Tensor, t: Tensor, y: Tensor) -> Tensor:
+        # x_t: (B, C, H, W)
+        # t: (B, 1, 1, 1)
+        # y: (B, 1, 1, 1)
+        # drift: (B, C, H, W)
         pass
 
     @abstractmethod
-    def diffusion_coefficient(
-        self, xt: torch.Tensor, t: torch.Tensor, y: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Returns the diffusion coefficient of the ODE.
-        Args:
-            - xt: state at time t, shape (bs, c, h, w)
-            - t: time, shape (bs, 1, 1, 1)
-        Returns:
-            - diffusion_coefficient: shape (bs, c, h, w)
-        """
+    def diffusion_coeff(self, x_t: Tensor, t: Tensor, y: Tensor) -> Tensor:
+        # x_t: (B, C, H, W)
+        # t: (B, 1, 1, 1)
+        # y: (B, 1, 1, 1)
+        # diffusion_coeff: (B, C, H, W)
         pass
 
 
-class ConditionalVectorField(nn.Module, ABC):
-    """
-    MLP-parameterization of the learned vector field u_t^theta(x)
-    """
-
+class Backbone(nn.Module, ABC):
     @abstractmethod
-    def forward(
-        self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Args:
-        - x: (bs, c, h, w)
-        - t: (bs, 1, 1, 1)
-        - y: (bs,)
-        Returns:
-        - u_t^theta(x|y): (bs, c, h, w)
-        """
+    def forward(self, x: Tensor, t: Tensor, y: Tensor) -> Tensor:
+        # x: (B, C, H, W)
+        # t: (B, 1, 1, 1)
+        # y: (B, 1, 1, 1)
+        # vf: (B, C, H, W)
         pass
 
 
-class CFGVectorFieldODE(ODE):
-    def __init__(
-        self, net: ConditionalVectorField, null_class: int, guidance_scale: float = 1.0
-    ):
-        self.net = net
+class GuidedNeuralODE(ODE):
+    def __init__(self, vf: Backbone, null_class: int, scale: float = 1.0):
+        self.vf = vf
         self.null_class = null_class
-        self.guidance_scale = guidance_scale
+        self.scale = scale
 
-    def drift_coefficient(
-        self, xt: torch.Tensor, t: torch.Tensor, y: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Args:
-        - x: (bs, c, h, w)
-        - t: (bs, 1, 1, 1)
-        - y: (bs,)
-        """
-        guided_vf = self.net(xt, t, y)
+    def drift_coeff(self, x_t: Tensor, t: Tensor, y: Tensor) -> Tensor:
+        # x_t: (B, C, H, W)
+        # t: (B, 1, 1, 1)
+        # y: (B, 1, 1, 1)
+
         unguided_y = torch.ones_like(y) * self.null_class
-        unguided_vf = self.net(xt, t, unguided_y)
+        unguided_vf: Tensor = self.vf(x_t, t, unguided_y)
+        # (B, C, H, W)
 
-        return (1 - self.guidance_scale) * unguided_vf + self.guidance_scale * guided_vf
+        guided_vf: Tensor = self.vf(x_t, t, y)
+        # (B, C, H, W)
+
+        drift = (1 - self.scale) * unguided_vf + self.scale * guided_vf
+        # (B, C, H, W)
+
+        return drift

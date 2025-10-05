@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch import Tensor
 import math
 
-from flow_matching.supervised.odes_sdes import ConditionalVectorField
+from flow_matching.supervised.odes_sdes import Backbone
 
 
 class SinusoidalTimeEmbedding(nn.Module):
@@ -24,7 +24,7 @@ class SinusoidalTimeEmbedding(nn.Module):
         return torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)  # [B, embedding_dim]
 
 
-class FlowNetBackbone(ConditionalVectorField):
+class FlowNetBackbone(Backbone):
     def __init__(
         self, num_classes: int, latent_channels: int = 64, time_emb_dim: int = 128
     ) -> None:

@@ -1,116 +1,85 @@
 from abc import ABC, abstractmethod
 
 import torch
+from torch import Tensor
 from torch.func import vmap, jacrev
 
 
 class Alpha(ABC):
-    def __init__(self):
-        # Check alpha_t(0) = 0
+    def __init__(self) -> None:
+        # Check alpha_t(0) = 0, alpha_t(1) = 1
         assert torch.allclose(self(torch.zeros(1, 1, 1, 1)), torch.zeros(1, 1, 1, 1))
-        # Check alpha_1 = 1
         assert torch.allclose(self(torch.ones(1, 1, 1, 1)), torch.ones(1, 1, 1, 1))
 
     @abstractmethod
-    def __call__(self, t: torch.Tensor) -> torch.Tensor:
-        """
-        Evaluates alpha_t. Should satisfy: self(0.0) = 0.0, self(1.0) = 1.0.
-        Args:
-            - t: time (num_samples, 1, 1, 1)
-        Returns:
-            - alpha_t (num_samples, 1, 1, 1)
-        """
+    def __call__(self, t: Tensor) -> Tensor:
+        # (B, 1, 1, 1)
         pass
 
-    def dt(self, t: torch.Tensor) -> torch.Tensor:
-        """
-        Evaluates d/dt alpha_t.
-        Args:
-            - t: time (num_samples, 1, 1, 1)
-        Returns:
-            - d/dt alpha_t (num_samples, 1, 1, 1)
-        """
+    def dt(self, t: Tensor) -> Tensor:
+        # (B, 1, 1, 1)
+
         t = t.unsqueeze(1)
-        dt = vmap(jacrev(self))(t)
-        return dt.view(-1, 1, 1, 1)
+        dt: Tensor = vmap(jacrev(self))(t)
+        dt = dt.view(-1, 1, 1, 1)
+        # (B, 1, 1, 1)
+
+        return dt
 
 
 class Beta(ABC):
-    def __init__(self):
-        # Check beta_0 = 1
+    def __init__(self) -> None:
+        # Check beta_0 = 1, beta_1 = 0
         assert torch.allclose(self(torch.zeros(1, 1, 1, 1)), torch.ones(1, 1, 1, 1))
-        # Check beta_1 = 0
         assert torch.allclose(self(torch.ones(1, 1, 1, 1)), torch.zeros(1, 1, 1, 1))
 
     @abstractmethod
-    def __call__(self, t: torch.Tensor) -> torch.Tensor:
-        """
-        Evaluates alpha_t. Should satisfy: self(0.0) = 1.0, self(1.0) = 0.0.
-        Args:
-            - t: time (num_samples, 1, 1, 1)
-        Returns:
-            - beta_t (num_samples, 1, 1, 1)
-        """
+    def __call__(self, t: Tensor) -> Tensor:
+        # (B, 1, 1, 1)
         pass
 
-    def dt(self, t: torch.Tensor) -> torch.Tensor:
-        """
-        Evaluates d/dt beta_t.
-        Args:
-            - t: time (num_samples, 1, 1, 1)
-        Returns:
-            - d/dt beta_t (num_samples, 1, 1, 1)
-        """
+    def dt(self, t: Tensor) -> Tensor:
+        # (B, 1, 1, 1)
+
         t = t.unsqueeze(1)
-        dt = vmap(jacrev(self))(t)
-        return dt.view(-1, 1, 1, 1)
+        dt: Tensor = vmap(jacrev(self))(t)
+        dt = dt.view(-1, 1, 1, 1)
+        # (B, 1, 1, 1)
+
+        return dt
 
 
 class LinearAlpha(Alpha):
-    """
-    Implements alpha_t = t
-    """
+    def __call__(self, t: Tensor) -> Tensor:
+        # (B, 1, 1, 1)
 
-    def __call__(self, t: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            - t: time (num_samples, 1, 1, 1)
-        Returns:
-            - alpha_t (num_samples, 1, 1, 1)
-        """
-        return t
+        alpha_t = t
+        # (B, 1, 1, 1)
 
-    def dt(self, t: torch.Tensor) -> torch.Tensor:
-        """
-        Evaluates d/dt alpha_t.
-        Args:
-            - t: time (num_samples, 1, 1, 1)
-        Returns:
-            - d/dt alpha_t (num_samples, 1, 1, 1)
-        """
-        return torch.ones_like(t)
+        return alpha_t
+
+    def dt(self, t: Tensor) -> Tensor:
+        # (B, 1, 1, 1)
+
+        dt = torch.ones_like(t)
+        # (B, 1, 1, 1)
+
+        return dt
 
 
 class LinearBeta(Beta):
-    """
-    Implements beta_t = 1-t
-    """
+    def __call__(self, t: Tensor) -> Tensor:
+        # (B, 1, 1, 1)
 
-    def __call__(self, t: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            - t: time (num_samples, 1)
-        Returns:
-            - beta_t (num_samples, 1)
-        """
-        return 1 - t
+        beta_t: Tensor = 1 - t
+        # (B, 1, 1, 1)
 
-    def dt(self, t: torch.Tensor) -> torch.Tensor:
-        """
-        Evaluates d/dt alpha_t.
-        Args:
-            - t: time (num_samples, 1, 1, 1)
-        Returns:
-            - d/dt alpha_t (num_samples, 1, 1, 1)
-        """
-        return -torch.ones_like(t)
+        return beta_t
+
+    def dt(self, t: Tensor) -> Tensor:
+        # (B, 1, 1, 1)
+
+        dt = -torch.ones_like(t)
+        # (B, 1, 1, 1)
+
+        return dt

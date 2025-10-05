@@ -4,8 +4,8 @@ import numpy as np
 import torch
 from flow_matching.evaluation.f1 import f1_score, precision_recall_knn
 from flow_matching.evaluation.kid import kernel_inception_distance_poly_biased
-from flow_matching.supervised.odes_sdes import CFGVectorFieldODE, ConditionalVectorField
-from flow_matching.supervised.prob_paths import ConditionalProbabilityPath
+from flow_matching.supervised.odes_sdes import GuidedNeuralODE, Backbone
+from flow_matching.supervised.prob_paths import CondProbPath
 from flow_matching.supervised.simulators import RK4Simulator
 from flow_matching.supervised.training import Trainer, sample_time_uniform
 
@@ -13,8 +13,8 @@ from flow_matching.supervised.training import Trainer, sample_time_uniform
 class FlowTrainer(Trainer):
     def __init__(
         self,
-        path: ConditionalProbabilityPath,
-        model: ConditionalVectorField,
+        path: CondProbPath,
+        model: Backbone,
         eta: float,
         null_class: int,
         num_classes: int,
@@ -49,18 +49,18 @@ class FlowTrainer(Trainer):
 
         # Step 3: Sample t and conditional path
         batch_t = self.sample_time(batch_size).to(device)
-        batch_xt = self.path.sample_conditional_path(batch_x, batch_t)
+        batch_xt = self.path.sample_cond_path(batch_x, batch_t)
 
         # Step 4: Regress and output loss
         pred = self.model(batch_xt, batch_t, batch_y)
-        ref = self.path.conditional_vector_field(batch_xt, batch_x, batch_t)
+        ref = self.path.cond_vf(batch_xt, batch_x, batch_t)
 
         return torch.mean((pred - ref) ** 2)
 
     @torch.no_grad()
     def get_val_metrics(self, device: torch.device) -> Any:
-        ode = CFGVectorFieldODE(
-            self.model, guidance_scale=self.guidance_scale, null_class=self.null_class
+        ode = GuidedNeuralODE(
+            self.model, scale=self.guidance_scale, null_class=self.null_class
         )
 
         simulator = RK4Simulator(ode)

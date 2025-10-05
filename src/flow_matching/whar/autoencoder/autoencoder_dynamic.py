@@ -2,7 +2,7 @@ from torch import nn, Tensor
 from typing import Tuple, Optional
 import torch
 
-from flow_matching.latent.autoencoder import AEC, CAE, CAEC, AE
+from flow_matching.architectures.autoencoder import AEC, CAE, CAEC, AE
 
 
 class ConditionalGroupNorm(nn.Module):

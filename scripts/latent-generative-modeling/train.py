@@ -1,12 +1,13 @@
 import os
+from typing import Tuple
 import hydra
 import torch
 import logging
 from omegaconf import DictConfig, OmegaConf
-from flow_matching.latent.autoencoder import AE, AEC, CAE, CAEC
+from flow_matching.architectures.autoencoder import AE, AEC, CAE, CAEC
 from flow_matching.supervised.alphas_betas import LinearAlpha, LinearBeta
-from flow_matching.supervised.odes_sdes import ConditionalVectorField
-from flow_matching.supervised.prob_paths import GaussianConditionalProbabilityPath
+from flow_matching.supervised.odes_sdes import Backbone
+from flow_matching.supervised.prob_paths import GaussianCondProbPath
 from flow_matching.whar.autoencoder.autoencoder import (
     SpectrogramAE,
     SpectrogramCAE,
@@ -17,10 +18,10 @@ from hydra.core.hydra_config import HydraConfig
 import shutil
 import wandb
 from dotenv import load_dotenv
-from flow_matching.whar.latent_model.latent_cnn import FiLMNetMultiBlock
-from flow_matching.whar.latent_model.latent_transformer import FlowTransformerBackbone
+from flow_matching.architectures.latent_cnn import FiLMNetMultiBlock
+from flow_matching.architectures.latent_transformer import FlowTransformerBackbone
 from flow_matching.whar.sampler import WHARSampler
-from flow_matching.latent.training_flow import LatentFlowTrainer
+from flow_matching.training.training_latent_flow import LatentFlowTrainer
 
 # Set up logging
 log = logging.getLogger(__name__)
@@ -55,11 +56,11 @@ def run_script(cfg: DictConfig) -> None:
     # Load dataset
     sampler = WHARSampler(subject_id=cfg.data.subject_id)
     num_classes = sampler.get_num_classes(sampler.train_indices)
-    latent_shape = [
+    latent_shape: Tuple[int, ...] = (
         cfg.autoencoder.latent_n_channels,
         cfg.autoencoder.latent_size,
         cfg.autoencoder.latent_size,
-    ]
+    )
 
     # Initialize autoencoder
     ae: AE | CAE | AEC | CAEC
@@ -94,7 +95,7 @@ def run_script(cfg: DictConfig) -> None:
             raise NotImplementedError
 
     # Initialize vector field
-    vf: ConditionalVectorField
+    vf: Backbone
     match cfg.model.architecure:
         case "transformer":
             vf = FlowTransformerBackbone(
@@ -109,7 +110,7 @@ def run_script(cfg: DictConfig) -> None:
             raise NotImplementedError
 
     # Initialize probability path
-    path = GaussianConditionalProbabilityPath(
+    path = GaussianCondProbPath(
         p_data=sampler,
         p_simple_shape=latent_shape,
         alpha=LinearAlpha(),

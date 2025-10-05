@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from flow_matching.supervised.odes_sdes import ConditionalVectorField
+from flow_matching.supervised.odes_sdes import Backbone
 
 
 # -------------------------------------------------
@@ -138,7 +138,7 @@ class AdaLNZeroBlock(nn.Module):
 # -------------------------------------------------
 # DiT Model with Conv2d patch embedding
 # -------------------------------------------------
-class DiT(ConditionalVectorField):
+class DiT(Backbone):
     def __init__(
         self,
         channels: int = 18,

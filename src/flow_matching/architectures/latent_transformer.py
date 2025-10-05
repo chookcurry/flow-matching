@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from flow_matching.supervised.odes_sdes import ConditionalVectorField
+from flow_matching.supervised.odes_sdes import Backbone
 
 
 # -----------------------------
@@ -146,7 +146,7 @@ class TransformerBlock(nn.Module):
 # -----------------------------
 # Flow Transformer Backbone
 # -----------------------------
-class FlowTransformerBackbone(ConditionalVectorField):
+class FlowTransformerBackbone(Backbone):
     """
     Transformer denoiser operating on global tokens with 2D sinusoidal positional embeddings.
 

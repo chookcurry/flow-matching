@@ -6,7 +6,7 @@ from wandb import Run
 from torch.utils.data import DataLoader
 from torch.optim import Optimizer, Adam
 
-from flow_matching.latent.autoencoder import AE, AEC, CAE, CAEC
+from flow_matching.architectures.autoencoder import AE, AEC, CAE, CAEC
 from flow_matching.utils.utils import AverageMeter, MiB, model_size_b
 from flow_matching.whar.ae_losses import ae_log_mag_phase, ae_mse, ae_spect_conv
 from flow_matching.whar.supcon import loss_supcon

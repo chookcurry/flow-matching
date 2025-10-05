@@ -3,7 +3,7 @@ import torch.nn as nn
 import math
 from torch import Tensor
 
-from flow_matching.supervised.odes_sdes import ConditionalVectorField
+from flow_matching.supervised.odes_sdes import Backbone
 
 
 class SinusoidalTimeEmbedding(nn.Module):
@@ -95,7 +95,7 @@ class AxialMHSABlockSimple(nn.Module):
         return x
 
 
-class FlowNetBackboneAxial(ConditionalVectorField):
+class FlowNetBackboneAxial(Backbone):
     def __init__(
         self,
         num_classes: int,

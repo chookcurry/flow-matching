@@ -4,16 +4,19 @@ import torch.nn as nn
 from torch import Tensor
 import torch.nn.functional as F
 
-from flow_matching.latent.vae import VAE
+from flow_matching.architectures.autoencoder import VAE
 
-LATENT_CHANNELS = 8
-LATENT_H = 4
-LATENT_W = 4
+
+def vae_loss_binary(recon_x: Tensor, x: Tensor, mu: Tensor, logvar: Tensor) -> Tensor:
+    recon_loss = F.binary_cross_entropy(recon_x, x, reduction="sum")
+    kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    return recon_loss + kl_div
 
 
 class Encoder(nn.Module):
-    def __init__(self):
+    def __init__(self, latent_channels: int) -> None:
         super().__init__()
+
         self.net = nn.Sequential(
             nn.Conv2d(1, 32, 4, stride=2, padding=1),  # 16x16
             nn.GroupNorm(4, 32),
@@ -25,8 +28,9 @@ class Encoder(nn.Module):
             nn.GroupNorm(8, 128),
             nn.ReLU(),
         )
-        self.mu_layer = nn.Conv2d(128, LATENT_CHANNELS, kernel_size=3, padding=1)
-        self.logvar_layer = nn.Conv2d(128, LATENT_CHANNELS, kernel_size=3, padding=1)
+
+        self.mu_layer = nn.Conv2d(128, latent_channels, kernel_size=3, padding=1)
+        self.logvar_layer = nn.Conv2d(128, latent_channels, kernel_size=3, padding=1)
 
     def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         h = self.net(x)  # B x 128 x 4 x 4
@@ -36,10 +40,11 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self):
+    def __init__(self, latent_channels: int) -> None:
         super().__init__()
+
         self.net = nn.Sequential(
-            nn.Conv2d(LATENT_CHANNELS, 128, 3, padding=1),
+            nn.Conv2d(latent_channels, 128, 3, padding=1),
             nn.GroupNorm(8, 128),
             nn.ReLU(),
             nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1),  # 8x8
@@ -56,21 +61,16 @@ class Decoder(nn.Module):
         )
 
     def forward(self, z: Tensor) -> Tensor:
-        return self.net(z)
-
-
-def vae_loss_binary(recon_x: Tensor, x: Tensor, mu: Tensor, logvar: Tensor):
-    recon_loss = F.binary_cross_entropy(recon_x, x, reduction="sum")
-    # KL divergence between N(mu, sigma) and N(0,1)
-    kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    return recon_loss + kl_div
+        out: Tensor = self.net(z)
+        return out
 
 
 class MNISTVAE(VAE):
-    def __init__(self):
+    def __init__(self, latent_channels: int) -> None:
         super().__init__()
-        self.encoder = Encoder()
-        self.decoder = Decoder()
+
+        self.encoder = Encoder(latent_channels)
+        self.decoder = Decoder(latent_channels)
 
     def reparameterize(self, mu: Tensor, logvar: Tensor) -> Tensor:
         std = torch.exp(0.5 * logvar)
@@ -83,9 +83,17 @@ class MNISTVAE(VAE):
         return z, mu, logvar
 
     def decode(self, z: Tensor) -> Tensor:
-        return self.decoder(z)
+        out: Tensor = self.decoder(z)
+        return out
 
     def forward(self, x: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         z, mu, logvar = self.encode(x)
         recon = self.decode(z)
         return recon, mu, logvar
+
+
+if __name__ == "__main__":
+    vae = MNISTVAE(latent_channels=8)
+    x = torch.randn(1, 1, 32, 32)
+    recon, mu, logvar = vae(x)
+    print(recon.shape, mu.shape, logvar.shape)

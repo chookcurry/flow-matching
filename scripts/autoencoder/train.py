@@ -7,7 +7,7 @@ import logging
 from omegaconf import DictConfig, OmegaConf
 from whar_datasets.adapters.pytorch import PytorchAdapter
 from whar_datasets.support.getter import WHARDatasetID, get_whar_cfg
-from flow_matching.latent.autoencoder import AE, AEC, CAE, CAEC
+from flow_matching.architectures.autoencoder import AE, AEC, CAE, CAEC
 from flow_matching.latent.training_cae import CAETrainer
 from flow_matching.whar.models.autoencoder_dynamic import (
     SpectrogramAE,

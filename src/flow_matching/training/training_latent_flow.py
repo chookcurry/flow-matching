@@ -4,22 +4,18 @@ import numpy as np
 import torch
 from flow_matching.evaluation.f1 import f1_score, precision_recall_knn
 from flow_matching.evaluation.kid import kernel_inception_distance_poly_biased
-from flow_matching.latent.autoencoder import AE, AEC, CAE, CAEC
-from flow_matching.supervised.odes_sdes import CFGVectorFieldODE, ConditionalVectorField
-from flow_matching.supervised.prob_paths import ConditionalProbabilityPath
+from flow_matching.architectures.autoencoder import AE, AEC, CAE, CAEC
+from flow_matching.supervised.odes_sdes import GuidedNeuralODE, Backbone
+from flow_matching.supervised.prob_paths import CondProbPath
 from flow_matching.supervised.simulators import RK4Simulator
-from flow_matching.supervised.training import (
-    Trainer,
-    sample_time_uniform,
-    sample_time_logit_normal,
-)
+from flow_matching.supervised.training import Trainer, sample_time_uniform
 
 
 class LatentFlowTrainer(Trainer):
     def __init__(
         self,
-        path: ConditionalProbabilityPath,
-        model: ConditionalVectorField,
+        path: CondProbPath,
+        model: Backbone,
         ae: AE | CAE | AEC | CAEC,
         eta: float,
         null_class: int,
@@ -67,11 +63,11 @@ class LatentFlowTrainer(Trainer):
 
         # Step 3: Sample t and x
         batch_t = self.sample_time(batch_size).to(device)
-        batch_x = self.path.sample_conditional_path(batch_z, batch_t)
+        batch_x = self.path.sample_cond_path(batch_z, batch_t)
 
         # Step 4: Regress and output loss
         pred = self.model(batch_x, batch_t, batch_y)
-        ref = self.path.conditional_vector_field(batch_x, batch_z, batch_t)
+        ref = self.path.cond_vf(batch_x, batch_z, batch_t)
 
         return torch.mean((pred - ref) ** 2)
 
@@ -80,8 +76,8 @@ class LatentFlowTrainer(Trainer):
         self,
         device: torch.device,
     ) -> Any:
-        ode = CFGVectorFieldODE(
-            self.model, guidance_scale=self.guidance_scale, null_class=self.null_class
+        ode = GuidedNeuralODE(
+            self.model, scale=self.guidance_scale, null_class=self.null_class
         )
 
         simulator = RK4Simulator(ode)

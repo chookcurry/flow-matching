@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from flow_matching.supervised.odes_sdes import ConditionalVectorField
+from flow_matching.supervised.odes_sdes import Backbone
 
 
 class FourierEncoder(nn.Module):
@@ -75,7 +75,7 @@ class ResidualFiLMBlock(nn.Module):
 
 
 # ========= Full model =========
-class FiLMNetMultiBlock(ConditionalVectorField):
+class FiLMNetMultiBlock(Backbone):
     """
     Input:  (B, 24, 4, 4)
     Output: (B, 24, 4, 4)
