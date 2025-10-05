@@ -4,6 +4,9 @@ from torch import nn
 from typing import Dict, List, Optional, Tuple
 
 from flow_matching.supervised.samplers import Sampleable
+import ssl
+
+ssl._create_default_https_context = ssl._create_unverified_context
 
 
 class MNISTSampler(nn.Module, Sampleable):

@@ -7,7 +7,7 @@ from flow_matching.evaluation.kid import kernel_inception_distance_poly_biased
 from flow_matching.supervised.odes_sdes import GuidedNeuralODE, Backbone
 from flow_matching.supervised.prob_paths import CondProbPath
 from flow_matching.supervised.simulators import RK4Simulator
-from flow_matching.supervised.training import Trainer, sample_time_uniform
+from flow_matching.training.training import Trainer, sample_time_uniform
 
 
 class FlowTrainer(Trainer):
@@ -18,8 +18,8 @@ class FlowTrainer(Trainer):
         eta: float,
         null_class: int,
         num_classes: int,
-        guidance_scale: float = 2.0,
-        num_timesteps: int = 100,
+        guidance_scale: float = 1.0,
+        num_timesteps: int = 10,
         num_samples: int = 40,
     ):
         super().__init__(model)

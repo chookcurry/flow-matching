@@ -22,6 +22,7 @@ def sample_time_logit_normal(batch_size: int) -> Tensor:
 class Trainer(ABC):
     def __init__(self, model: Backbone):
         super().__init__()
+
         self.model = model
         self.optimizer = self.get_optimizer()
 
@@ -36,6 +37,7 @@ class Trainer(ABC):
         lr: float = 1e-3,
         steps_per_epoch: int = 1000,
         run: Run | None = None,
+        validate: bool = True,
     ) -> None:
         # Report model size
         size_b = model_size_b(self.model)
@@ -74,6 +76,9 @@ class Trainer(ABC):
 
                 loss.backward()
                 optimizer.step()
+
+            if not validate:
+                continue
 
             self.model.eval()
             metrics = self.get_val_metrics(device)

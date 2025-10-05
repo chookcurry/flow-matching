@@ -8,7 +8,7 @@ from flow_matching.architectures.autoencoder import AE, AEC, CAE, CAEC
 from flow_matching.supervised.odes_sdes import GuidedNeuralODE, Backbone
 from flow_matching.supervised.prob_paths import CondProbPath
 from flow_matching.supervised.simulators import RK4Simulator
-from flow_matching.supervised.training import Trainer, sample_time_uniform
+from flow_matching.training.training import Trainer, sample_time_uniform
 
 
 class LatentFlowTrainer(Trainer):

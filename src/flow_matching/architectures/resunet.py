@@ -39,6 +39,7 @@ from flow_matching.supervised.odes_sdes import Backbone
 class SinusoidalTimeEmbedding(nn.Module):
     def __init__(self, dim: int):
         super().__init__()
+
         assert dim % 2 == 0
         self.half_dim = dim // 2
 
@@ -68,6 +69,7 @@ class SinusoidalTimeEmbedding(nn.Module):
 class AdaGroupNorm(nn.Module):
     def __init__(self, num_groups: int, num_channels: int, cond_dim: int) -> None:
         super().__init__()
+
         self.group_norm = nn.GroupNorm(num_groups, num_channels, affine=False, eps=1e-6)
         self.linear = nn.Linear(cond_dim, 2 * num_channels)
         # outputs scale (γ) and shift (β)
@@ -164,40 +166,40 @@ class ResBlock(nn.Module):
 #         return x
 
 
-class UpsampleBilinear(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, cond_dim: int):
-        super().__init__()
-        self.upsample = nn.Upsample(
-            scale_factor=2, mode="bilinear", align_corners=False
-        )
-        self.conv = ConvBlock(in_channels, out_channels, cond_dim)
-
-    def forward(self, x: Tensor, cond: Tensor) -> Tensor:
-        # x: (B, C, H/, W/2)
-
-        x = self.upsample(x)
-        x = self.conv(x, cond)
-        # (B, C, H, W)
-
-        return x
-
-
-# class UpsampleConvTranspose(nn.Module):
+# class UpsampleBilinear(nn.Module):
 #     def __init__(self, in_channels: int, out_channels: int, cond_dim: int):
 #         super().__init__()
-#         self.upconv = nn.ConvTranspose2d(
-#             in_channels, out_channels, kernel_size=4, stride=2, padding=1
+#         self.upsample = nn.Upsample(
+#             scale_factor=2, mode="bilinear", align_corners=False
 #         )
-#         self.conv = ConvBlock(out_channels, out_channels, cond_dim)
+#         self.conv = ConvBlock(in_channels, out_channels, cond_dim)
 
 #     def forward(self, x: Tensor, cond: Tensor) -> Tensor:
 #         # x: (B, C, H/, W/2)
 
-#         x = self.upconv(x)
+#         x = self.upsample(x)
 #         x = self.conv(x, cond)
 #         # (B, C, H, W)
 
 #         return x
+
+
+class UpsampleConvTranspose(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, cond_dim: int):
+        super().__init__()
+        self.upconv = nn.ConvTranspose2d(
+            in_channels, out_channels, kernel_size=4, stride=2, padding=1
+        )
+        self.conv = ConvBlock(out_channels, out_channels, cond_dim)
+
+    def forward(self, x: Tensor, cond: Tensor) -> Tensor:
+        # x: (B, C, H/, W/2)
+
+        x = self.upconv(x)
+        x = self.conv(x, cond)
+        # (B, C, H, W)
+
+        return x
 
 
 class EncoderBlock(nn.Module):
@@ -228,7 +230,7 @@ class DecoderBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, cond_dim: int) -> None:
         super().__init__()
 
-        self.upsample = UpsampleBilinear(in_channels, in_channels, cond_dim)
+        self.upsample = UpsampleConvTranspose(in_channels, in_channels, cond_dim)
         self.res1 = ResBlock(2 * in_channels, out_channels, cond_dim)
         self.res2 = ResBlock(out_channels, out_channels, cond_dim)
 
@@ -297,12 +299,12 @@ class Conditioner(nn.Module):
 class ResUnet(Backbone):
     def __init__(
         self,
-        in_channels: int = 18,
-        channels: List[int] = [32, 64, 128],
-        num_classes: int = 6,
-        t_dim: int = 64,
-        y_dim: int = 32,
-        cond_dim: int = 128,
+        in_channels: int,
+        channels: List[int],
+        num_classes: int,
+        t_dim: int,
+        y_dim: int,
+        cond_dim: int,
     ) -> None:
         super().__init__()
 
@@ -358,7 +360,14 @@ class ResUnet(Backbone):
 
 
 if __name__ == "__main__":
-    model = ResUnet()
+    model = ResUnet(
+        in_channels=18,
+        channels=[64, 128, 256, 512, 1024],
+        num_classes=6,
+        t_dim=16,
+        y_dim=16,
+        cond_dim=64,
+    )
     input = torch.randn(1, 18, 64, 64)
     t = torch.rand(1)
     y = torch.randint(0, 6, (1,))
