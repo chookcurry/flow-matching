@@ -20,7 +20,7 @@ import wandb
 from dotenv import load_dotenv
 from flow_matching.architectures.latent_cnn import FiLMNetMultiBlock
 from flow_matching.architectures.latent_transformer import FlowTransformerBackbone
-from flow_matching.whar.sampler import WHARSampler
+from flow_matching.whar.whar_sampler import WHARSampler
 from flow_matching.training.training_latent_flow import LatentFlowTrainer
 
 # Set up logging
