@@ -15,87 +15,117 @@ def cosine_beta_schedule(timesteps: int, s: float = 0.008) -> Tensor:
     return torch.clip(betas, 0, 0.999).float()
 
 
-class DDPM:
-    def __init__(
-        self,
-        backbone: Backbone,
-        device: torch.device,
-        timesteps: int = 1000,
-        unconditional_label: int = -1,
-    ):
-        self.backbone = backbone
-        self.device = device
-        self.timesteps = timesteps
-        self.unconditional_label = unconditional_label
+def extract(a: Tensor, t: Tensor, x_shape: tuple) -> Tensor:
+    out = a.cpu().gather(0, t.cpu().long()).to(a.device)
+    return out.view((t.shape[0],) + (1,) * (len(x_shape) - 1))
 
-        self.betas = cosine_beta_schedule(timesteps).to(self.device)
+
+# ------------------------------------------------------------
+# 1️⃣ Forward Process — defines q(x_t | x_0) and schedules
+# ------------------------------------------------------------
+class ForwardProcess:
+    """Defines the forward diffusion process (noising)."""
+
+    def __init__(self, timesteps: int, device: torch.device):
+        self.timesteps = timesteps
+        self.device = device
+
+        # Compute beta schedule
+        self.betas = cosine_beta_schedule(timesteps).to(device)
         self.alphas = 1.0 - self.betas
         self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
         self.alphas_cumprod_prev = F.pad(self.alphas_cumprod[:-1], (1, 0), value=1.0)
+
+        # Precompute useful terms for q_sample
         self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
         self.sqrt_one_minus_alphas_cumprod = torch.sqrt(1 - self.alphas_cumprod)
-        self.posterior_variance = (
+
+        # Precompute posterior variance (sigma_t^2)
+        self.post_var = (
             self.betas * (1 - self.alphas_cumprod_prev) / (1 - self.alphas_cumprod)
         )
 
-    def _extract(self, a: Tensor, t: Tensor, x_shape: tuple) -> Tensor:
-        out = a.cpu().gather(0, t.cpu().long()).to(a.device)
-        return out.view((t.shape[0],) + (1,) * (len(x_shape) - 1))
+        # Coefficient for x_0 term in posterior mean
+        self.posterior_mean_coef1 = (
+            torch.sqrt(self.alphas_cumprod_prev) * self.betas
+        ) / (1 - self.alphas_cumprod)
+
+        # Coefficient for x_t term in posterior mean
+        self.posterior_mean_coef2 = (
+            torch.sqrt(self.alphas) * (1 - self.alphas_cumprod_prev)
+        ) / (1 - self.alphas_cumprod)
 
     def q_sample(self, x_start: Tensor, t: Tensor, noise: Tensor) -> Tensor:
-        return self._extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start.to(
-            self.device
-        ) + self._extract(
-            self.sqrt_one_minus_alphas_cumprod, t, x_start.shape
-        ) * noise.to(self.device)
+        """Forward diffusion: sample x_t = √ᾱ_t * x₀ + √(1-ᾱ_t) * ε"""
+        return (
+            extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
+            + extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
+        )
 
-    def training_losses(self, x_start: Tensor, y: Tensor) -> Tensor:
-        b = x_start.shape[0]
-        t = torch.randint(0, self.timesteps, (b,), device=x_start.device)
-        noise = torch.randn_like(x_start, dtype=torch.float32, device=x_start.device)
-        x_t = self.q_sample(x_start, t, noise)
 
-        eps_pred = self.backbone(x_t, t, y)
-        return F.mse_loss(eps_pred, noise)
+# ------------------------------------------------------------
+# 2️⃣ Backward Process — defines p(x_{t-1} | x_t)
+# ------------------------------------------------------------
+class BackwardProcess:
+    """Reverse process p(x_{t-1} | x_t) using the backbone."""
 
-    @torch.no_grad()
+    def __init__(
+        self,
+        backbone: Backbone,
+        forward: ForwardProcess,
+        device: torch.device,
+        null_class: int,
+    ):
+        self.backbone = backbone
+        self.forward = forward
+        self.device = device
+        self.timesteps = forward.timesteps
+        self.null_class = null_class
+
     def p_sample(
         self, x_t: Tensor, t: Tensor, y: Tensor, guidance_scale: float = 1.0
     ) -> Tensor:
+        """Sample x_{t-1} given x_t using the model's predicted noise."""
         b = x_t.shape[0]
+        fwd = self.forward
 
+        # 1. Classifier-free guidance to get the noise prediction
         if guidance_scale == 1.0:
             eps_pred = self.backbone(x_t, t, y)
         else:
+            # Handle both class (int) and embedding (float) conditions
             if y.dtype in (torch.int64, torch.int32):
-                uncond = torch.full_like(y, self.unconditional_label)
+                uncond = torch.full_like(y, self.null_class)
             else:
                 uncond = torch.zeros_like(y)
+
             x_in = torch.cat([x_t, x_t], dim=0)
             t_in = torch.cat([t, t], dim=0)
             cond_in = torch.cat([uncond, y], dim=0)
+
             eps_uncond, eps_cond = self.backbone(x_in, t_in, cond_in).chunk(2, 0)
             eps_pred = eps_uncond + guidance_scale * (eps_cond - eps_uncond)
 
+        # 2. Predict the original image (x_0)
         x0_pred = (
-            x_t
-            - self._extract(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * eps_pred
-        ) / self._extract(self.sqrt_alphas_cumprod, t, x_t.shape)
+            x_t - extract(fwd.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * eps_pred
+        ) / extract(fwd.sqrt_alphas_cumprod, t, x_t.shape)
         x0_pred = torch.clamp(x0_pred, -1, 1)
 
+        # 3. Calculate the posterior mean using the original DDPM formula
         posterior_mean = (
-            self._extract(self.betas, t, x_t.shape) * x0_pred
-            + self._extract(self.alphas, t, x_t.shape) * x_t
+            extract(fwd.posterior_mean_coef1, t, x_t.shape) * x0_pred
+            + extract(fwd.posterior_mean_coef2, t, x_t.shape) * x_t
         )
 
-        noise = torch.randn_like(x_t, dtype=torch.float32, device=x_t.device)
+        # 4. Add noise (except for the final step, t=0)
+        noise = torch.randn_like(x_t)
+        # Create a mask to prevent adding noise at t=0
         nonzero_mask = (t != 0).float().view((b,) + (1,) * (len(x_t.shape) - 1))
 
         return (
             posterior_mean
-            + nonzero_mask
-            * torch.sqrt(self._extract(self.posterior_variance, t, x_t.shape))
-            * noise
+            + nonzero_mask * torch.sqrt(extract(fwd.post_var, t, x_t.shape)) * noise
         )
 
     @torch.no_grad()
@@ -103,8 +133,50 @@ class DDPM:
         self, batch_size: int, shape: tuple, y: Tensor, guidance_scale: float = 1.0
     ) -> Tensor:
         x = torch.randn((batch_size, *shape), device=self.device)
-
         for t_ in tqdm(reversed(range(self.timesteps))):
             t = torch.full((batch_size,), t_, device=self.device, dtype=torch.long)
             x = self.p_sample(x, t, y, guidance_scale)
         return x
+
+
+# ------------------------------------------------------------
+# 3️⃣ DDPM — wrapper combining forward + backward processes
+# ------------------------------------------------------------
+class DDPM:
+    """Wraps forward and backward processes, computes training loss and sampling."""
+
+    def __init__(
+        self,
+        backbone: Backbone,
+        device: torch.device,
+        timesteps: int,
+        null_class: int,
+    ):
+        self.device = device
+        self.forward_process = ForwardProcess(timesteps, device)
+        self.backward_process = BackwardProcess(
+            backbone, self.forward_process, device, null_class
+        )
+        self.backbone = backbone
+
+    def loss(self, x_start: Tensor, y: Tensor) -> Tensor:
+        """Compute DDPM loss: E_t[ || ε - ε_θ(x_t, t, y) ||² ]"""
+        b = x_start.shape[0]
+        t = torch.randint(
+            0, self.forward_process.timesteps, (b,), device=x_start.device
+        )
+        noise = torch.randn_like(x_start)
+
+        # Diffuse x_0 to x_t
+        x_t = self.forward_process.q_sample(x_start, t, noise)
+
+        # Predict noise and compute MSE
+        eps_pred = self.backbone(x_t, t, y)
+        return F.mse_loss(eps_pred, noise)
+
+    @torch.no_grad()
+    def sample(
+        self, batch_size: int, shape: tuple, y: Tensor, guidance_scale: float = 1.0
+    ) -> Tensor:
+        """Generate samples via reverse diffusion."""
+        return self.backward_process.sample(batch_size, shape, y, guidance_scale)

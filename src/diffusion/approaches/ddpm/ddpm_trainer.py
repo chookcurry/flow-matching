@@ -36,7 +36,7 @@ class DDPMTrainer(Trainer):
             backbone=self.backbone,
             device=self.device,
             timesteps=timesteps,
-            unconditional_label=self.null_class,
+            null_class=self.null_class,
         )
 
     def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
@@ -50,8 +50,7 @@ class DDPMTrainer(Trainer):
         batch_y[mask] = self.null_class
 
         # Compute DDPM loss
-        loss = self.ddpm.training_losses(batch_x, batch_y)
-        return loss
+        return self.ddpm.loss(batch_x, batch_y)
 
     @torch.no_grad()
     def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
