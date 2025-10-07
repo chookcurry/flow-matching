@@ -9,15 +9,15 @@ from omegaconf import OmegaConf, DictConfig
 
 from whar_datasets.adapters.pytorch import PytorchAdapter
 from whar_datasets.support.getter import WHARDatasetID, get_whar_cfg
-from flow_matching.architectures.autoencoder import AE, AEC, CAE, CAEC
-from flow_matching.latent.training_cae import collate_fn, detransform
-from flow_matching.whar.models.autoencoder_dynamic import (
+from diffusion.architectures.latent.autoencoder import AE, AEC, CAE, CAEC
+from diffusion.latent.cae_trainer import collate_fn, detransform
+from diffusion.whar.models.autoencoder_dynamic import (
     SpectrogramAE,
     SpectrogramCAE,
     SpectrogramAEC,
     SpectrogramCAEC,
 )
-from flow_matching.whar.stft import decompress_stft, plot_spectrogram_grid
+from diffusion.utils.stft import decompress_stft, plot_spectrogram_grid
 
 # -------------------
 # Setup
