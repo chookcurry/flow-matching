@@ -8,7 +8,7 @@ from diffusion.data.sampleables import Sampleable
 
 
 class MNISTSampleable(nn.Module, Sampleable):
-    def __init__(self, root: str = "./data") -> None:
+    def __init__(self, train: bool, root: str = "./data") -> None:
         super().__init__()
 
         self.num_classes = 10
@@ -16,7 +16,7 @@ class MNISTSampleable(nn.Module, Sampleable):
         ssl._create_default_https_context = ssl._create_unverified_context
         self.dataset = datasets.MNIST(
             root=root,
-            train=True,
+            train=train,
             download=True,
             transform=transforms.Compose(
                 [

@@ -1,14 +1,15 @@
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 import numpy as np
 import torch
+from torch import Tensor
 from diffusion.evaluation.f1 import f1_score, precision_recall_knn
 from diffusion.evaluation.kid import kernel_inception_distance_poly_biased
 from diffusion.architectures.latent.autoencoder import AE, AEC, CAE, CAEC
 from diffusion.approaches.matching.odes_sdes import GuidedNeuralODE, Backbone
 from diffusion.approaches.matching.prob_paths import CondProbPath
 from diffusion.approaches.matching.simulators import RK4Simulator
-from diffusion.training.trainer import Trainer
+from diffusion.training.trainer import Trainer, sample_time_uniform
 
 
 class LatentFlowTrainer(Trainer):
@@ -23,6 +24,7 @@ class LatentFlowTrainer(Trainer):
         guidance_scale: float = 2.0,
         num_timesteps: int = 100,
         num_samples: int = 40,
+        sample_time: Callable[[int], Tensor] = sample_time_uniform,
     ):
         super().__init__(model)
 
@@ -36,6 +38,7 @@ class LatentFlowTrainer(Trainer):
         self.guidance_scale = guidance_scale
         self.num_timesteps = num_timesteps
         self.num_samples = num_samples
+        self.sample_time = sample_time
 
         for param in self.ae.parameters():
             param.requires_grad = False
@@ -60,7 +63,7 @@ class LatentFlowTrainer(Trainer):
         batch_y[mask] = self.null_class
 
         # Step 3: Sample t and x
-        batch_t = self.sample_time_uniform(batch_size).to(device)
+        batch_t = self.sample_time(batch_size).to(device)
         batch_x = self.path.sample_cond_path(batch_z, batch_t)
 
         # Step 4: Regress and output loss

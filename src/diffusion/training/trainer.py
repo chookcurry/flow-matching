@@ -3,16 +3,16 @@ from typing import Dict
 import torch
 from tqdm import tqdm
 from torch import Tensor
+from torch import nn
 from wandb import Run
 from torch.optim import Optimizer, AdamW
 
-from diffusion.approaches.matching.odes_sdes import Backbone
 from diffusion.utils.utils import AverageMeter, model_size_b, MiB
 from diffusion.utils.logging import logger
 
 
 class Trainer(ABC):
-    def __init__(self, model: Backbone):
+    def __init__(self, model: nn.Module):
         super().__init__()
 
         self.model = model
@@ -99,8 +99,10 @@ class Trainer(ABC):
     def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
         pass
 
-    def sample_time_uniform(self, batch_size: int) -> Tensor:
-        return torch.rand(batch_size, 1, 1, 1)
 
-    def sample_time_logit_normal(self, batch_size: int) -> Tensor:
-        return torch.sigmoid(torch.normal(0.0, 0.6, size=(batch_size, 1, 1, 1)))
+def sample_time_uniform(batch_size: int) -> Tensor:
+    return torch.rand(batch_size, 1, 1, 1)
+
+
+def sample_time_logit_normal(batch_size: int) -> Tensor:
+    return torch.sigmoid(torch.normal(0.0, 0.6, size=(batch_size, 1, 1, 1)))
