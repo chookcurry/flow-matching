@@ -13,21 +13,21 @@ class FlowTrainer(Trainer):
     def __init__(
         self,
         path: CondProbPath,
-        model: Backbone,
+        backbone: Backbone,
         num_classes: int,
-        eta: float = 0.2,
+        y_drop_prob: float = 0.2,
         guidance_scale: float = 3.0,
         num_timesteps: int = 10,
         num_samples: int = 1000,
     ):
-        super().__init__(model)
+        super().__init__(backbone)
 
-        assert 0 < eta < 1
+        assert 0 < y_drop_prob < 1
 
         self.path = path
         self.num_classes = num_classes
         self.null_class = num_classes
-        self.eta = eta
+        self.y_drop_prob = y_drop_prob
         self.guidance_scale = guidance_scale
         self.num_timesteps = num_timesteps
         self.num_samples = num_samples
@@ -39,7 +39,7 @@ class FlowTrainer(Trainer):
         batch_x, batch_y = batch_x.to(device), batch_y.to(device)
 
         # Step 2: Set each label to null class with probability eta
-        mask = torch.rand(batch_size, device=device) < self.eta
+        mask = torch.rand(batch_size, device=device) < self.y_drop_prob
         batch_y[mask] = self.null_class
 
         # Step 3: Sample t and conditional path
@@ -66,18 +66,18 @@ class FlowTrainer(Trainer):
         )
 
         # Sample all data and conditions at once
-        all_x, all_y = self.path.p_data.sample(self.num_samples)
-        assert all_y is not None
-        all_x, all_y = all_x.to(device), all_y.to(device)
+        x, y = self.path.p_data.sample(self.num_samples)
+        assert y is not None
+        x, y = x.to(device), y.to(device)
 
         # Sample simple prior and simulate
-        all_x0, _ = self.path.p_simple.sample(self.num_samples)
-        all_x0 = all_x0.to(device)
-        all_x1 = simulator.simulate(all_x0, ts, all_y)
+        x0, _ = self.path.p_simple.sample(self.num_samples)
+        x0 = x0.to(device)
+        x1 = simulator.simulate(x0, ts, y)
 
         # Compute overall metrics directly
-        kid = kernel_inception_distance_poly(all_x1, all_x)
-        precision, recall = precision_recall_knn(all_x1, all_x)
+        kid = kernel_inception_distance_poly(x1, x)
+        precision, recall = precision_recall_knn(x1, x)
         f1 = f1_score(precision, recall)
 
         metrics = {

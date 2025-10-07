@@ -41,7 +41,7 @@ class SDE(ABC):
 
 
 class GuidedNeuralODE(ODE):
-    def __init__(self, vf: Backbone, null_class: int, scale: float = 1.0):
+    def __init__(self, vf: Backbone, null_class: int, scale: float):
         self.vf = vf
         self.null_class = null_class
         self.scale = scale
@@ -70,7 +70,7 @@ class GuidedNeuralSDE(SDE):
         vf: Backbone,
         score_fn: Backbone,
         null_class: int,
-        scale: float = 1.0,
+        scale: float,
     ):
         self.vf = vf
         self.score_fn = score_fn
