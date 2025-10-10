@@ -3,7 +3,7 @@ import torch
 from torch import Tensor
 from tqdm import tqdm
 
-from diffusion.approaches.ddpm.processes import BackwardProcess, ForwardProcess
+from diffusion.approaches.ddpm.backward_process import BackwardProcess, ForwardProcess
 from diffusion.architectures.backbone import Backbone
 from diffusion.evaluation.generator import Generator
 

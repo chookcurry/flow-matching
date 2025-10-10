@@ -8,7 +8,7 @@ from diffusion.architectures.backbone import Backbone
 from diffusion.training.trainer import Trainer
 from diffusion.evaluation.f1 import f1_score, precision_recall_knn
 from diffusion.evaluation.kid import kernel_inception_distance_poly
-from diffusion.approaches.ddpm.processes import BackwardProcess, ForwardProcess
+from diffusion.approaches.ddpm.backward_process import BackwardProcess, ForwardProcess
 from diffusion.data.sampleables import Sampleable
 
 
@@ -36,7 +36,7 @@ class DDPMTrainer(Trainer):
         self.num_samples = num_samples
 
         self.device = next(backbone.parameters()).device
-        self.forward_process = ForwardProcess(timesteps)
+        self.forward_process = ForwardProcess(timesteps, self.device)
         self.backward_process = BackwardProcess(
             backbone, self.forward_process, self.null_class
         )
@@ -69,27 +69,27 @@ class DDPMTrainer(Trainer):
 
     @torch.no_grad()
     def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
-        # Sample all data and conditions at once
-        x, y = self.dataset.sample(self.num_samples)
-        assert y is not None
-        x, y = x.to(device), y.to(device)
+        # # Sample all data and conditions at once
+        # x, y = self.dataset.sample(self.num_samples)
+        # assert y is not None
+        # x, y = x.to(device), y.to(device)
 
-        # Generate samples with guidance
-        samples = self.backward_process.sample(
-            batch_size=self.num_samples,
-            shape=x.shape[1:],
-            y=y,
-            guidance_scale=self.guidance_scale,
-        )
+        # # Generate samples with guidance
+        # samples = self.backward_process.sample(
+        #     batch_size=self.num_samples,
+        #     shape=x.shape[1:],
+        #     y=y,
+        #     guidance_scale=self.guidance_scale,
+        # )
 
-        # Compute evaluation metrics
-        kid = kernel_inception_distance_poly(samples, x)
-        precision, recall = precision_recall_knn(samples, x)
-        f1 = f1_score(precision, recall)
+        # # Compute evaluation metrics
+        # kid = kernel_inception_distance_poly(samples, x)
+        # precision, recall = precision_recall_knn(samples, x)
+        # f1 = f1_score(precision, recall)
 
-        return {
-            "kid": kid.item(),
-            "precision": precision.item(),
-            "recall": recall.item(),
-            "f1": f1.item(),
-        }
+        # return {
+        #     "kid": kid.item(),
+        #     "precision": precision.item(),
+        #     "recall": recall.item(),
+        #     "f1": f1.item(),
+        # }
