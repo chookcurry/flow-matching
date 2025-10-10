@@ -9,7 +9,7 @@ def compute_pairwise_distances(x: Tensor, y: Tensor) -> Tensor:
 
 
 def precision_recall_knn(
-    real_feats: Tensor, gen_feats: Tensor, k: int = 3, batch_size: int = 1000
+    real_feats: Tensor, gen_feats: Tensor, k: int = 5, batch_size: int = 1000
 ) -> Tuple[Tensor, Tensor]:
     real_feats = real_feats.view(real_feats.size(0), -1)
     gen_feats = gen_feats.view(gen_feats.size(0), -1)

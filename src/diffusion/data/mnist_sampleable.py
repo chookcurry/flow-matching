@@ -12,6 +12,7 @@ class MNISTSampleable(nn.Module, Sampleable):
         super().__init__()
 
         self.num_classes = 10
+        self.shape = (1, 32, 32)
 
         ssl._create_default_https_context = ssl._create_unverified_context
         self.dataset = datasets.MNIST(

@@ -2,11 +2,13 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+import torch.nn.functional as F
+
 from diffusion.architectures.backbone import Backbone
 from diffusion.training.trainer import Trainer
 from diffusion.evaluation.f1 import f1_score, precision_recall_knn
 from diffusion.evaluation.kid import kernel_inception_distance_poly
-from diffusion.approaches.ddpm.ddpm import DDPM
+from diffusion.approaches.ddpm.processes import BackwardProcess, ForwardProcess
 from diffusion.data.sampleables import Sampleable
 
 
@@ -23,6 +25,8 @@ class DDPMTrainer(Trainer):
     ):
         super().__init__(backbone)
 
+        assert 0 < y_drop_prob < 1
+
         self.dataset = dataset
         self.backbone = backbone
         self.num_classes = num_classes
@@ -30,13 +34,11 @@ class DDPMTrainer(Trainer):
         self.guidance_scale = guidance_scale
         self.y_drop_prob = y_drop_prob
         self.num_samples = num_samples
-        self.device = next(backbone.parameters()).device
 
-        self.ddpm = DDPM(
-            backbone=self.backbone,
-            device=self.device,
-            timesteps=timesteps,
-            null_class=self.null_class,
+        self.device = next(backbone.parameters()).device
+        self.forward_process = ForwardProcess(timesteps)
+        self.backward_process = BackwardProcess(
+            backbone, self.forward_process, self.null_class
         )
 
     def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
@@ -49,8 +51,21 @@ class DDPMTrainer(Trainer):
         mask = torch.rand(batch_size, device=device) < self.y_drop_prob
         batch_y[mask] = self.null_class
 
-        # Compute DDPM loss
-        return self.ddpm.loss(batch_x, batch_y)
+        # Compute DDPM loss: E_t[ || ε - ε_θ(x_t, t, y) ||² ]
+        t = torch.randint(
+            low=0,
+            high=self.forward_process.timesteps,
+            size=(batch_size,),
+            device=batch_x.device,
+        )
+
+        # Diffuse x_0 to x_t
+        noise = torch.randn_like(batch_x)
+        x_t = self.forward_process.q_sample(batch_x, t, noise)
+
+        # Predict noise and compute MSE
+        eps_pred = self.backbone(x_t, t, batch_y)
+        return F.mse_loss(eps_pred, noise)
 
     @torch.no_grad()
     def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
@@ -60,7 +75,7 @@ class DDPMTrainer(Trainer):
         x, y = x.to(device), y.to(device)
 
         # Generate samples with guidance
-        samples = self.ddpm.sample(
+        samples = self.backward_process.sample(
             batch_size=self.num_samples,
             shape=x.shape[1:],
             y=y,

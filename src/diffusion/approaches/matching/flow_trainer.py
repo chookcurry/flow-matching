@@ -79,6 +79,7 @@ class FlowTrainer(Trainer):
                 assert y_c is not None
                 xs.append(x_c)
                 ys.append(y_c)
+
             x = torch.cat(xs, dim=0).to(device)
             y = torch.cat(ys, dim=0).to(device)
 
@@ -102,9 +103,28 @@ class FlowTrainer(Trainer):
             x1_enc = self.encoder(x1)
 
             # --- 6. Compute metrics ---
-            kid = kernel_inception_distance_poly(x1_enc, x_enc)
-            precision, recall = precision_recall_knn(x1_enc, x_enc)
-            f1 = f1_score(precision, recall)
+            kids = []
+            precisions = []
+            recalls = []
+            f1s = []
+
+            for i in range(self.num_classes):
+                start = i * samples_per_class
+                end = start + samples_per_class
+
+                k = kernel_inception_distance_poly(x1_enc[start:end], x_enc[start:end])
+                p, r = precision_recall_knn(x1_enc[start:end], x_enc[start:end])
+                f = f1_score(p, r)
+
+                kids.append(k)
+                precisions.append(p)
+                recalls.append(r)
+                f1s.append(f)
+
+            kid = torch.stack(kids).mean()
+            precision = torch.stack(precisions).mean()
+            recall = torch.stack(recalls).mean()
+            f1 = torch.stack(f1s).mean()
 
             # --- 7. Save for aggregation ---
             kid_list.append(kid.item())
