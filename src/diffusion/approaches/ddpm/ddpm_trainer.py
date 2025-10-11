@@ -4,10 +4,10 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 
-from diffusion.architectures.backbone import Backbone
+from diffusion.architectures.backbones.backbone import Backbone
 from diffusion.training.trainer import Trainer
 from diffusion.approaches.ddpm.backward_process import BackwardProcess, ForwardProcess
-from diffusion.data.sampleables import Sampleable
+from diffusion.sampleables.sampleable import Sampleable
 
 
 class DDPMTrainer(Trainer):

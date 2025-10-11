@@ -2,9 +2,17 @@ from typing import Callable, Dict
 
 import torch
 from torch import Tensor
-from diffusion.approaches.matching.odes_sdes import Backbone
+from diffusion.architectures.backbones.backbone import Backbone
 from diffusion.approaches.matching.prob_paths import CondProbPath
-from diffusion.training.trainer import Trainer, sample_time_uniform
+from diffusion.training.trainer import Trainer
+
+
+def sample_time_uniform(batch_size: int) -> Tensor:
+    return torch.rand(batch_size, 1, 1, 1)
+
+
+def sample_time_logit_normal(batch_size: int) -> Tensor:
+    return torch.sigmoid(torch.normal(0.0, 0.6, size=(batch_size, 1, 1, 1)))
 
 
 class FlowTrainer(Trainer):

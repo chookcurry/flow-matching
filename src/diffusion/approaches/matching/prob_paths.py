@@ -5,8 +5,8 @@ from typing import Tuple
 from torch.func import vmap, jacrev
 from torch import Tensor, nn, randn_like
 
-from diffusion.data.sampleables import IsotropicGaussian
-from diffusion.data.sampleables import Sampleable
+from diffusion.sampleables.sampleable import IsotropicGaussian
+from diffusion.sampleables.sampleable import Sampleable
 from diffusion.approaches.matching.odes_sdes import Backbone
 
 

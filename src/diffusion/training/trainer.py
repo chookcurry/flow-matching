@@ -98,11 +98,3 @@ class Trainer(ABC):
     @torch.no_grad()
     def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
         pass
-
-
-def sample_time_uniform(batch_size: int) -> Tensor:
-    return torch.rand(batch_size, 1, 1, 1)
-
-
-def sample_time_logit_normal(batch_size: int) -> Tensor:
-    return torch.sigmoid(torch.normal(0.0, 0.6, size=(batch_size, 1, 1, 1)))
