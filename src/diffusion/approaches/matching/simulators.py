@@ -9,7 +9,14 @@ from diffusion.approaches.matching.odes_sdes import ODE, SDE
 
 class Simulator(ABC):
     @abstractmethod
-    def step(self, xt: Tensor, t: Tensor, dt: Tensor, y: Tensor) -> Tensor:
+    def step(
+        self,
+        xt: Tensor,
+        t: Tensor,
+        dt: Tensor,
+        y: Tensor,
+        guidance_scale: float | None = None,
+    ) -> Tensor:
         # xt: (B, C, H, W)
         # t: (B, 1, 1, 1)
         # dt: (B, 1, 1, 1)
@@ -18,7 +25,9 @@ class Simulator(ABC):
         pass
 
     @torch.no_grad()
-    def simulate(self, x: Tensor, ts: Tensor, y: Tensor) -> Tensor:
+    def simulate(
+        self, x: Tensor, ts: Tensor, y: Tensor, guidance_scale: float | None = None
+    ) -> Tensor:
         # x: (B, C, H, W)
         # ts: (B, num_timesteps, 1, 1, 1)
         # y: (B, 1, 1, 1)
@@ -28,12 +37,14 @@ class Simulator(ABC):
         for i in tqdm(range(num_timesteps - 1)):
             t = ts[:, i]
             dt = ts[:, i + 1] - ts[:, i]
-            x = self.step(x, t, dt, y)
+            x = self.step(x, t, dt, y, guidance_scale)
 
         return x
 
     @torch.no_grad()
-    def simulate_with_trajectory(self, x: Tensor, ts: Tensor, y: Tensor) -> Tensor:
+    def simulate_with_trajectory(
+        self, x: Tensor, ts: Tensor, y: Tensor, guidance_scale: float | None = None
+    ) -> Tensor:
         # x: (B, C, H, W)
         # ts: (B, num_timesteps, 1, 1, 1)
         # y: (B, 1, 1, 1)
@@ -44,7 +55,7 @@ class Simulator(ABC):
         for t_idx in tqdm(range(num_timesteps - 1)):
             t = ts[:, t_idx]
             h = ts[:, t_idx + 1] - ts[:, t_idx]
-            x = self.step(x, t, h, y)
+            x = self.step(x, t, h, y, guidance_scale)
             x_list.append(x.clone())
 
         xs = torch.stack(x_list, dim=1)
@@ -57,18 +68,32 @@ class EulerSimulator(Simulator):
     def __init__(self, ode: ODE):
         self.ode = ode
 
-    def step(self, xt: Tensor, t: Tensor, dt: Tensor, y: Tensor) -> Tensor:
-        return xt + self.ode.drift_coeff(xt, t, y) * dt
+    def step(
+        self,
+        xt: Tensor,
+        t: Tensor,
+        dt: Tensor,
+        y: Tensor,
+        guidance_scale: float | None = None,
+    ) -> Tensor:
+        return xt + self.ode.drift_coeff(xt, t, y, guidance_scale) * dt
 
 
 class HeunSimulator(Simulator):
     def __init__(self, ode: ODE):
         self.ode = ode
 
-    def step(self, xt: Tensor, t: Tensor, dt: Tensor, y: Tensor) -> Tensor:
-        k1 = self.ode.drift_coeff(xt, t, y)
+    def step(
+        self,
+        xt: Tensor,
+        t: Tensor,
+        dt: Tensor,
+        y: Tensor,
+        guidance_scale: float | None = None,
+    ) -> Tensor:
+        k1 = self.ode.drift_coeff(xt, t, y, guidance_scale)
         xt_euler = xt + dt * k1
-        k2 = self.ode.drift_coeff(xt_euler, t + dt, y)
+        k2 = self.ode.drift_coeff(xt_euler, t + dt, y, guidance_scale)
 
         return xt + 0.5 * dt * (k1 + k2)
 
@@ -77,11 +102,18 @@ class RK4Simulator(Simulator):
     def __init__(self, ode: ODE):
         self.ode = ode
 
-    def step(self, xt: Tensor, t: Tensor, dt: Tensor, y: Tensor) -> Tensor:
-        k1 = self.ode.drift_coeff(xt, t, y)
-        k2 = self.ode.drift_coeff(xt + 0.5 * dt * k1, t + 0.5 * dt, y)
-        k3 = self.ode.drift_coeff(xt + 0.5 * dt * k2, t + 0.5 * dt, y)
-        k4 = self.ode.drift_coeff(xt + dt * k3, t + dt, y)
+    def step(
+        self,
+        xt: Tensor,
+        t: Tensor,
+        dt: Tensor,
+        y: Tensor,
+        guidance_scale: float | None = None,
+    ) -> Tensor:
+        k1 = self.ode.drift_coeff(xt, t, y, guidance_scale)
+        k2 = self.ode.drift_coeff(xt + 0.5 * dt * k1, t + 0.5 * dt, y, guidance_scale)
+        k3 = self.ode.drift_coeff(xt + 0.5 * dt * k2, t + 0.5 * dt, y, guidance_scale)
+        k4 = self.ode.drift_coeff(xt + dt * k3, t + dt, y, guidance_scale)
 
         return xt + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
 
@@ -90,11 +122,18 @@ class EulerMaruyamaSimulator(Simulator):
     def __init__(self, sde: SDE):
         self.sde = sde
 
-    def step(self, xt: Tensor, t: Tensor, dt: Tensor, y: Tensor) -> Tensor:
+    def step(
+        self,
+        xt: Tensor,
+        t: Tensor,
+        dt: Tensor,
+        y: Tensor,
+        guidance_scale: float | None = None,
+    ) -> Tensor:
         return (
             xt
-            + self.sde.drift_coeff(xt, t, y) * dt
-            + self.sde.diffusion_coeff(xt, t, y) * torch.sqrt(dt) * torch.randn_like(xt)
+            + self.sde.drift_coeff(xt, t, y, guidance_scale) * dt
+            + self.sde.diffusion_coeff(xt, t) * torch.sqrt(dt) * torch.randn_like(xt)
         )
 
 

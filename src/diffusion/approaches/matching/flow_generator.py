@@ -1,18 +1,19 @@
+from typing import Tuple
 from torch import Tensor
 import torch
 
 from diffusion.evaluation.generator import Generator
-from diffusion.approaches.matching.alphas_betas import (
-    LinearAlpha,
-    LinearBeta,
-    ScoreFromVectorFieldForGaussianProbPath,
-)
 from diffusion.approaches.matching.odes_sdes import (
     GuidedNeuralODE,
     Backbone,
     GuidedNeuralSDE,
 )
-from diffusion.approaches.matching.prob_paths import CondProbPath
+from diffusion.approaches.matching.prob_paths import (
+    CondProbPath,
+    LinearAlpha,
+    LinearBeta,
+    ScoreFromVectorFieldForGaussianProbPath,
+)
 from diffusion.approaches.matching.simulators import (
     EulerMaruyamaSimulator,
     EulerSimulator,
@@ -26,17 +27,24 @@ class FlowGenerator(Generator):
         backbone: Backbone,
         num_timesteps: int,
         null_class: int,
-        guidance_scale: float,
         device: torch.device,
     ) -> None:
         self.path = path
         self.num_timesteps = num_timesteps
         self.device = device
 
-        self.ode = GuidedNeuralODE(backbone, null_class, guidance_scale)
+        self.ode = GuidedNeuralODE(backbone, null_class)
         self.simulator = EulerSimulator(self.ode)
 
-    def generate(self, y: Tensor, x0: Tensor | None = None) -> Tensor:
+    def sample_prior(
+        self, num_samples: int, shape: Tuple[int, ...], device: torch.device
+    ):
+        x0, _ = self.path.p_simple.sample(num_samples)
+        return x0
+
+    def generate(
+        self, y: Tensor, x0: Tensor | None = None, guidance_scale: float | None = None
+    ) -> Tensor:
         num_samples = y.shape[0]
 
         if x0 is None:
@@ -50,7 +58,7 @@ class FlowGenerator(Generator):
             .to(self.device)
         )
 
-        x1 = self.simulator.simulate(x0, ts, y)
+        x1 = self.simulator.simulate(x0, ts, y, guidance_scale)
 
         return x1
 
@@ -62,7 +70,6 @@ class ScoreGenerator(Generator):
         backbone: Backbone,
         num_timesteps: int,
         null_class: int,
-        guidance_scale: float,
         device: torch.device,
     ) -> None:
         self.path = path
@@ -73,10 +80,18 @@ class ScoreGenerator(Generator):
             backbone, LinearAlpha(), LinearBeta()
         )
 
-        self.sde = GuidedNeuralSDE(backbone, score, null_class, guidance_scale)
+        self.sde = GuidedNeuralSDE(backbone, score, null_class)
         self.simulator = EulerMaruyamaSimulator(self.sde)
 
-    def generate(self, y: Tensor, x0: Tensor | None = None) -> Tensor:
+    def sample_prior(
+        self, num_samples: int, shape: Tuple[int, ...], device: torch.device
+    ):
+        x0, _ = self.path.p_simple.sample(num_samples)
+        return x0
+
+    def generate(
+        self, y: Tensor, x0: Tensor | None = None, guidance_scale: float | None = None
+    ) -> Tensor:
         num_samples = y.shape[0]
 
         if x0 is None:
@@ -90,6 +105,6 @@ class ScoreGenerator(Generator):
             .to(self.device)
         )
 
-        x1 = self.simulator.simulate(x0, ts, y)
+        x1 = self.simulator.simulate(x0, ts, y, guidance_scale)
 
         return x1

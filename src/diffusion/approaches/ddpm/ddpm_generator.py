@@ -16,19 +16,24 @@ class DDPMGenerator(Generator):
         timesteps: int,
         null_class: int,
         shape: Tuple[int, ...],
-        guidance_scale: float,
     ):
         self.backbone = backbone
         self.device = device
         self.shape = shape
-        self.guidance_scale = guidance_scale
 
         self.forward_process = ForwardProcess(timesteps, device)
         self.backward_process = BackwardProcess(
             backbone, self.forward_process, null_class
         )
 
-    def generate(self, y: Tensor, x0: Tensor | None = None) -> Tensor:
+    def sample_prior(
+        self, num_samples: int, shape: Tuple[int, ...], device: torch.device
+    ) -> Tensor:
+        return torch.randn((num_samples, *shape), device=device)
+
+    def generate(
+        self, y: Tensor, x0: Tensor | None = None, guidance_scale: float | None = None
+    ) -> Tensor:
         x = (
             torch.randn((y.shape[0], *self.shape), device=y.device)
             if x0 is None
@@ -37,6 +42,6 @@ class DDPMGenerator(Generator):
 
         for step in tqdm(reversed(range(self.backward_process.timesteps))):
             t = torch.full((y.shape[0],), step, device=y.device)
-            x = self.backward_process.p_sample(x, t, y, self.guidance_scale)
+            x = self.backward_process.p_sample(x, t, y, guidance_scale)
 
         return x

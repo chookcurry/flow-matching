@@ -16,7 +16,7 @@ class BackwardProcess:
         self.null_class = null_class
 
     def p_sample(
-        self, x_t: Tensor, t: Tensor, y: Tensor, guidance_scale: float = 1.0
+        self, x_t: Tensor, t: Tensor, y: Tensor, guidance_scale: float | None = None
     ) -> Tensor:
         b = x_t.shape[0]
 
@@ -30,7 +30,7 @@ class BackwardProcess:
         # ------------------------------------------------
         # Classifier-free guidance: compute once efficiently
         # ------------------------------------------------
-        if guidance_scale == 1.0:
+        if guidance_scale is None:
             eps_pred = self.backbone(x_t, t, y)
         else:
             if y.dtype in (torch.int64, torch.int32):

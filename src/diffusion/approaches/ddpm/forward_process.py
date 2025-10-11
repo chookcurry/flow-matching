@@ -9,16 +9,19 @@ from diffusion.approaches.ddpm.utils import extract
 def cosine_beta_schedule(timesteps: int, s: float = 0.008) -> Tensor:
     steps = timesteps + 1
     x = torch.linspace(0, timesteps, steps, dtype=torch.float32)
+
     alphas_cumprod = torch.cos(((x / timesteps) + s) / (1 + s) * math.pi * 0.5) ** 2
     alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
     betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
+
     return torch.clip(betas, 0, 0.999).float()
 
 
 # ------------------------------------------------------------
 # 1️⃣ Forward Process — defines q(x_t | x_0) and schedules
 # ------------------------------------------------------------
-# sample x_t = √ᾱ_t * x₀ + √(1-ᾱ_t) * ε
+
+
 class ForwardProcess:
     def __init__(self, timesteps: int, device: torch.device):
         self.timesteps = timesteps
@@ -52,4 +55,6 @@ class ForwardProcess:
     def q_sample(self, x_start: Tensor, t: Tensor, noise: Tensor) -> Tensor:
         sqrt_ac = extract(self.sqrt_alphas_cumprod, t, x_start.shape)
         sqrt_om_ac = extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape)
+
+        # sample x_t = √ᾱ_t * x₀ + √(1-ᾱ_t) * ε
         return sqrt_ac * x_start + sqrt_om_ac * noise
