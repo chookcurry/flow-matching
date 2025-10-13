@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torch import Tensor
 
-from diffusion.architectures.backbone import Backbone
+from diffusion.architectures.backbones.backbone import Backbone
 
 
 # class FourierEncoder(nn.Module):

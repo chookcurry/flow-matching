@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict
+from typing import Any, Dict
 import torch
 from tqdm import tqdm
 from torch import Tensor
@@ -29,8 +29,10 @@ class Trainer(ABC):
         device: torch.device,
         lr: float = 1e-3,
         validate: bool = True,
+        val_batch_size: int = 500,
+        patience: int = 5,
         run: Run | None = None,
-    ) -> None:
+    ) -> dict[str, Any]:
         size_b = model_size_b(self.model)
         logger.info(f"Training model with size: {size_b / MiB:.3f} MiB")
 
@@ -42,53 +44,63 @@ class Trainer(ABC):
         )
 
         # Early stopping setup
-        # best_val_loss = float("inf")
-        # current_val_loss = float("inf")
-        # best_model_state = self.model.state_dict()
-        # patience_counter = 0
+        best_val_loss = float("inf")
+        current_val_loss = float("inf")
+        best_model_state = self.model.state_dict()
+        patience_counter = 0
 
-        losses = AverageMeter()
+        train_losses = AverageMeter()
 
         for epoch in range(num_epochs):
             self.model.train()
-            losses.reset()
+            train_losses.reset()
 
+            # setup progress bar
             pbar = tqdm(range(steps_per_epoch))
             pbar.set_description(f"Epoch {epoch}/{num_epochs}")
 
+            # run tra
             for _ in pbar:
                 optimizer.zero_grad()
-                loss = self.get_train_loss(batch_size=batch_size, device=device)
+                train_loss = self.get_train_loss(batch_size, device)
 
-                run.log({"train/loss": loss.item()}) if run else None
-                losses.update(loss.item())
-                pbar.set_postfix(loss=f"{losses.avg:.6f}")
+                run.log({"train/loss": train_loss.item()}) if run else None
+                train_losses.update(train_loss.item())
+                pbar.set_postfix(train_loss=f"{train_losses.avg:.6f}")
 
-                loss.backward()
+                train_loss.backward()
                 optimizer.step()
 
             if not validate:
                 continue
 
             self.model.eval()
-            metrics = self.get_val_metrics(device)
-            logger.info([f"{key}: {value:.6f}" for key, value in metrics.items()])
-            run.log({f"val/{k}": v for k, v in metrics.items()}) if run else None
 
-        #     current_val_loss = float(loss.item())
-        #     if current_val_loss < best_val_loss:
-        #         best_val_loss = current_val_loss
-        #         best_model_state = self.model.state_dict()
-        #         patience_counter = 0
-        #     else:
-        #         patience_counter += 1
+            # validate
+            val_loss = self.get_val_loss(val_batch_size, device)
+            logger.info(f"val loss: {val_loss}")
+            run.log({"val/loss": val_loss.item()}) if run else None
 
-        #     if patience_counter >= patience:
-        #         logger.info(f"Early stopping triggered at epoch {epoch}/{num_epochs}")
-        #         break
+            # update when val loss improves
+            current_val_loss = float(val_loss.item())
+            if current_val_loss < best_val_loss:
+                best_val_loss = current_val_loss
+                best_model_state = self.model.state_dict()
+                patience_counter = 0
+            else:
+                patience_counter += 1
 
-        # self.model.load_state_dict(best_model_state)
-        # return best_model_state
+            # early stopping
+            if patience_counter >= patience:
+                logger.info(f"Early stopping triggered at epoch {epoch}/{num_epochs}")
+                break
+
+            # val_metrics = self.get_val_metrics(device)
+            # logger.info([f"{key}: {value:.6f}" for key, value in val_metrics.items()])
+            # run.log({f"val/{k}": v for k, v in val_metrics.items()}) if run else None
+
+        self.model.load_state_dict(best_model_state)
+        return best_model_state
 
     @abstractmethod
     def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
@@ -96,5 +108,10 @@ class Trainer(ABC):
 
     @abstractmethod
     @torch.no_grad()
-    def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
+    def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
         pass
+
+    # @abstractmethod
+    # @torch.no_grad()
+    # def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
+    #     pass

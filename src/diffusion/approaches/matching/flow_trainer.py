@@ -23,7 +23,6 @@ class FlowTrainer(Trainer):
         backbone: Backbone,
         null_class: int,
         y_drop_prob: float = 0.2,
-        num_val_samples: int = 2000,
         sample_time: Callable[[int], Tensor] = sample_time_uniform,
     ):
         super().__init__(backbone)
@@ -35,12 +34,13 @@ class FlowTrainer(Trainer):
         self.backbone = backbone
         self.null_class = null_class
         self.y_drop_prob = y_drop_prob
-        self.num_val_samples = num_val_samples
         self.sample_time = sample_time
 
-    def get_train_loss(self, batch_size: int, device: torch.device) -> torch.Tensor:
+    def _get_loss(
+        self, path: CondProbPath, batch_size: int, device: torch.device
+    ) -> Tensor:
         # Step 1: Sample x, y from p_data
-        batch_x, batch_y = self.path.p_data.sample(batch_size)
+        batch_x, batch_y = path.p_data.sample(batch_size)
         assert batch_y is not None
         batch_x, batch_y = batch_x.to(device), batch_y.to(device)
 
@@ -50,36 +50,21 @@ class FlowTrainer(Trainer):
 
         # Step 3: Sample t and conditional path
         batch_t = self.sample_time(batch_size).to(device)
-        batch_xt = self.path.sample_cond_path(batch_x, batch_t)
+        batch_xt = path.sample_cond_path(batch_x, batch_t)
 
         # Step 4: Regress and output loss
         pred = self.model(batch_xt, batch_t, batch_y)
-        ref = self.path.cond_vf(batch_xt, batch_x, batch_t)
+        ref = path.cond_vf(batch_xt, batch_x, batch_t)
         loss = torch.mean((pred - ref) ** 2)
 
         return loss
 
+    def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
+        return self._get_loss(self.path, batch_size, device)
+
     @torch.no_grad()
-    def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
-        # Step 1: Sample x, y from p_data
-        batch_x, batch_y = self.val_path.p_data.sample(self.num_val_samples)
-        assert batch_y is not None
-        batch_x, batch_y = batch_x.to(device), batch_y.to(device)
-
-        # Step 2: Set each label to null class with probability eta
-        mask = torch.rand(self.num_val_samples, device=device) < self.y_drop_prob
-        batch_y[mask] = self.null_class
-
-        # Step 3: Sample t and conditional path
-        batch_t = self.sample_time(self.num_val_samples).to(device)
-        batch_xt = self.val_path.sample_cond_path(batch_x, batch_t)
-
-        # Step 4: Regress and output loss
-        pred = self.model(batch_xt, batch_t, batch_y)
-        ref = self.val_path.cond_vf(batch_xt, batch_x, batch_t)
-        val_loss = torch.mean((pred - ref) ** 2)
-
-        return {"val_loss": val_loss.item()}
+    def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
+        return self._get_loss(self.val_path, batch_size, device)
 
     # @torch.no_grad()
     # def get_val_metrics(self, device: torch.device) -> Dict[str, float]:

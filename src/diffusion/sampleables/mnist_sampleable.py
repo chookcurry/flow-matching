@@ -4,7 +4,7 @@ from torch import nn
 from typing import Dict, List, Optional, Tuple
 import ssl
 
-from diffusion.data.sampleables import Sampleable
+from diffusion.sampleables.sampleable import Sampleable
 
 
 class MNISTSampleable(nn.Module, Sampleable):
