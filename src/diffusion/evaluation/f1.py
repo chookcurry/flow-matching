@@ -3,16 +3,21 @@ import torch
 from torch import Tensor
 
 
-def compute_pairwise_distances(x: Tensor, y: Tensor) -> Tensor:
-    # x: [N, D], y: [M, D]
-    return torch.cdist(x, y, p=2)  # Euclidean
+def f1_score(precision: Tensor, recall: Tensor) -> Tensor:
+    if precision + recall == torch.zeros(1):
+        return torch.zeros(1)
+    return 2 * (precision * recall) / (precision + recall)
 
 
 def precision_recall_knn(
-    real_feats: Tensor, gen_feats: Tensor, k: int = 5, batch_size: int = 1000
+    real_feats: Tensor, gen_feats: Tensor, k: int = 3, batch_size: int = 300
 ) -> Tuple[Tensor, Tensor]:
-    real_feats = real_feats.view(real_feats.size(0), -1)
-    gen_feats = gen_feats.view(gen_feats.size(0), -1)
+    assert real_feats.shape == gen_feats.shape
+    num_samples = real_feats.shape[0]
+
+    real_feats = real_feats.view(num_samples, -1)
+    gen_feats = gen_feats.view(num_samples, -1)
+    # (num_samples, feature_dim)
 
     # Compute k-th NN distance from real to real
     dists_rr = compute_pairwise_distances(real_feats, real_feats)
@@ -34,7 +39,7 @@ def precision_recall_knn(
         within = dists <= r_real.unsqueeze(0)  # [B, N]
         precision_count += (within.any(dim=1)).float().sum().item()
 
-    precision = precision_count / gen_feats.size(0)
+    precision = precision_count / num_samples
 
     # Recall: how many real samples fall within gen kNN balls
     recall_count = torch.zeros(1)
@@ -44,12 +49,11 @@ def precision_recall_knn(
         within = dists <= r_gen.unsqueeze(0)  # [B, M]
         recall_count += (within.any(dim=1)).float().sum().item()
 
-    recall = recall_count / real_feats.size(0)
+    recall = recall_count / num_samples
 
     return precision, recall
 
 
-def f1_score(precision: Tensor, recall: Tensor) -> Tensor:
-    if precision + recall == torch.zeros(1):
-        return torch.zeros(1)
-    return 2 * (precision * recall) / (precision + recall)
+def compute_pairwise_distances(x: Tensor, y: Tensor) -> Tensor:
+    # x: [N, D], y: [M, D]
+    return torch.cdist(x, y, p=2)  # Euclidean

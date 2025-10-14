@@ -4,7 +4,7 @@ import torch.nn as nn
 from typing import Dict
 from torch import Tensor
 
-from diffusion.data.sampleables import Sampleable
+from diffusion.sampleables.sampleable import Sampleable
 from diffusion.training.trainer import Trainer
 
 

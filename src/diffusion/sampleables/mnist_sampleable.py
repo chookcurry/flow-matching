@@ -44,7 +44,8 @@ class MNISTSampleable(nn.Module, Sampleable):
         else:
             available = self.class_to_indices.get(class_label, [])
             assert num_samples <= len(available)
-            indices = torch.randperm(len(available))[:num_samples].tolist()
+            chosen = torch.randperm(len(available))[:num_samples].tolist()
+            indices = [available[i] for i in chosen]
 
         samples, labels = zip(*[self.dataset[i] for i in indices])
         samples_stack = torch.stack(samples).to(self.dummy.device)

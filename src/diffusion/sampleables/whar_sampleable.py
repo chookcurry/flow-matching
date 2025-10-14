@@ -7,7 +7,7 @@ from whar_datasets.support.getter import WHARDatasetID, get_whar_cfg
 from whar_datasets.core.splitting import split_indices
 from whar_datasets.adapters.sampler import Sampler
 
-from diffusion.data.sampleables import Sampleable
+from diffusion.sampleables.sampleable import Sampleable
 from diffusion.utils.stft import compress_stft, stft_transform
 
 

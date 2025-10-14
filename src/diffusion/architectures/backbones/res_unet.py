@@ -166,40 +166,40 @@ class ResBlock(nn.Module):
 #         return x
 
 
-# class UpsampleBilinear(nn.Module):
-#     def __init__(self, in_channels: int, out_channels: int, cond_dim: int):
-#         super().__init__()
-#         self.upsample = nn.Upsample(
-#             scale_factor=2, mode="bilinear", align_corners=False
-#         )
-#         self.conv = ConvBlock(in_channels, out_channels, cond_dim)
-
-#     def forward(self, x: Tensor, cond: Tensor) -> Tensor:
-#         # x: (B, C, H/, W/2)
-
-#         x = self.upsample(x)
-#         x = self.conv(x, cond)
-#         # (B, C, H, W)
-
-#         return x
-
-
-class UpsampleConvTranspose(nn.Module):
+class UpsampleBilinear(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, cond_dim: int):
         super().__init__()
-        self.upconv = nn.ConvTranspose2d(
-            in_channels, out_channels, kernel_size=4, stride=2, padding=1
+        self.upsample = nn.Upsample(
+            scale_factor=2, mode="bilinear", align_corners=False
         )
-        self.conv = ConvBlock(out_channels, out_channels, cond_dim)
+        self.conv = ConvBlock(in_channels, out_channels, cond_dim)
 
     def forward(self, x: Tensor, cond: Tensor) -> Tensor:
         # x: (B, C, H/, W/2)
 
-        x = self.upconv(x)
+        x = self.upsample(x)
         x = self.conv(x, cond)
         # (B, C, H, W)
 
         return x
+
+
+# class UpsampleConvTranspose(nn.Module):
+#     def __init__(self, in_channels: int, out_channels: int, cond_dim: int):
+#         super().__init__()
+#         self.upconv = nn.ConvTranspose2d(
+#             in_channels, out_channels, kernel_size=4, stride=2, padding=1
+#         )
+#         self.conv = ConvBlock(out_channels, out_channels, cond_dim)
+
+#     def forward(self, x: Tensor, cond: Tensor) -> Tensor:
+#         # x: (B, C, H/, W/2)
+
+#         x = self.upconv(x)
+#         x = self.conv(x, cond)
+#         # (B, C, H, W)
+
+#         return x
 
 
 class EncoderBlock(nn.Module):
@@ -230,7 +230,9 @@ class DecoderBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, cond_dim: int) -> None:
         super().__init__()
 
-        self.upsample = UpsampleConvTranspose(in_channels, in_channels, cond_dim)
+        # self.upsample = UpsampleConvTranspose(in_channels, in_channels, cond_dim)
+        self.upsample = UpsampleBilinear(in_channels, in_channels, cond_dim)
+
         self.res1 = ResBlock(2 * in_channels, out_channels, cond_dim)
         self.res2 = ResBlock(out_channels, out_channels, cond_dim)
 
