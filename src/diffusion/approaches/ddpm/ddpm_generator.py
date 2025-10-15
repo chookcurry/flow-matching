@@ -27,7 +27,11 @@ class DDPMGenerator(Generator):
         )
 
     def sample_prior(
-        self, num_samples: int, shape: Tuple[int, ...], device: torch.device
+        self,
+        num_samples: int,
+        shape: Tuple[int, ...],
+        device: torch.device,
+        y: Tensor | None = None,
     ) -> Tensor:
         return torch.randn((num_samples, *shape), device=device)
 

@@ -50,7 +50,7 @@ class FlowTrainer(Trainer):
 
         # Step 3: Sample t and conditional path
         batch_t = self.sample_time(batch_size).to(device)
-        batch_xt = path.sample_cond_path(batch_x, batch_t)
+        batch_xt = path.sample_cond_path(batch_x, batch_t, batch_y)
 
         # Step 4: Regress and output loss
         pred = self.model(batch_xt, batch_t, batch_y)
@@ -65,83 +65,3 @@ class FlowTrainer(Trainer):
     @torch.no_grad()
     def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
         return self._get_loss(self.val_path, batch_size, device)
-
-    # @torch.no_grad()
-    # def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
-    #     ode = GuidedNeuralODE(self.backbone, self.null_class, self.guidance_scale)
-    #     simulator = EulerSimulator(ode)
-
-    #     samples_per_class = self.num_samples // self.num_classes
-
-    #     kid_list, precision_list, recall_list, f1_list = [], [], [], []
-
-    #     for _ in range(self.num_rounds):
-    #         # --- 1. Balanced real data ---
-    #         xs, ys = [], []
-    #         for c in range(self.num_classes):
-    #             x_c, y_c = self.path.p_data.sample(samples_per_class, class_label=c)
-    #             assert y_c is not None
-    #             xs.append(x_c)
-    #             ys.append(y_c)
-
-    #         x = torch.cat(xs, dim=0).to(device)
-    #         y = torch.cat(ys, dim=0).to(device)
-
-    #         # --- 2. Unconditional prior ---
-    #         x0, _ = self.path.p_simple.sample(self.num_samples)
-    #         x0 = x0.to(device)
-
-    #         # --- 3. Time steps ---
-    #         ts = (
-    #             torch.linspace(0, 1, self.num_timesteps)
-    #             .view(1, -1, 1, 1, 1)
-    #             .expand(self.num_samples, -1, 1, 1, 1)
-    #             .to(device)
-    #         )
-
-    #         # --- 4. Generate samples ---
-    #         x1 = simulator.simulate(x0, ts, y)
-
-    #         # --- 5. Encode features ---
-    #         x_enc = self.encoder(x)
-    #         x1_enc = self.encoder(x1)
-
-    #         # --- 6. Compute metrics ---
-    #         kids = []
-    #         precisions = []
-    #         recalls = []
-    #         f1s = []
-
-    #         for i in range(self.num_classes):
-    #             start = i * samples_per_class
-    #             end = start + samples_per_class
-
-    #             k = kernel_inception_distance_poly(x1_enc[start:end], x_enc[start:end])
-    #             p, r = precision_recall_knn(x1_enc[start:end], x_enc[start:end])
-    #             f = f1_score(p, r)
-
-    #             kids.append(k)
-    #             precisions.append(p)
-    #             recalls.append(r)
-    #             f1s.append(f)
-
-    #         kid = torch.stack(kids).mean()
-    #         precision = torch.stack(precisions).mean()
-    #         recall = torch.stack(recalls).mean()
-    #         f1 = torch.stack(f1s).mean()
-
-    #         # --- 7. Save for aggregation ---
-    #         kid_list.append(kid.item())
-    #         precision_list.append(precision.item())
-    #         recall_list.append(recall.item())
-    #         f1_list.append(f1.item())
-
-    #     # Aggregate mean ± std
-    #     metrics = {
-    #         "kid": float(np.mean(kid_list)),  # , float(np.std(kid_list))),
-    #         "precision": float(np.mean(precision_list)),
-    #         "recall": float(np.mean(recall_list)),
-    #         "f1": float(np.mean(f1_list)),
-    #     }
-
-    #     return metrics

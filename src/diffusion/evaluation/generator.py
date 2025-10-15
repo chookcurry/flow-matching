@@ -9,7 +9,11 @@ class Generator(ABC):
     @abstractmethod
     @torch.no_grad()
     def sample_prior(
-        self, num_samples: int, shape: Tuple[int, ...], device: torch.device
+        self,
+        num_samples: int,
+        shape: Tuple[int, ...],
+        device: torch.device,
+        y: Tensor | None = None,
     ) -> Tensor:
         pass
 

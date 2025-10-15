@@ -1,7 +1,7 @@
 import torch
 from torchvision import datasets, transforms  # type: ignore
-from torch import nn
-from typing import Dict, List, Optional, Tuple
+from torch import Tensor, nn
+from typing import Dict, List, Tuple
 import ssl
 
 from diffusion.sampleables.sampleable import Sampleable
@@ -36,19 +36,25 @@ class MNISTSampleable(nn.Module, Sampleable):
         self.dummy = nn.Buffer(torch.zeros(1))
 
     def sample(
-        self, num_samples: int, class_label: int | None = None
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        if class_label is None:
-            assert num_samples <= len(self.dataset)
-            indices = torch.randperm(len(self.dataset))[:num_samples].tolist()
-        else:
-            available = self.class_to_indices.get(class_label, [])
-            assert num_samples <= len(available)
-            chosen = torch.randperm(len(available))[:num_samples].tolist()
-            indices = [available[i] for i in chosen]
+        self, num_samples: int, y: Tensor | None = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        device = self.dummy.device
+
+        if y is None:
+            # Randomly choose class labels if none provided
+            y = torch.randint(0, self.num_classes, (num_samples,), device=device)
+
+        indices: List[int] = []
+        for label in y.tolist():
+            available = self.class_to_indices.get(label, [])
+            if len(available) == 0:
+                raise ValueError(f"No samples found for label {label}")
+            # Choose a random example from this class
+            idx = available[int(torch.randint(0, len(available), (1,)).item())]
+            indices.append(idx)
 
         samples, labels = zip(*[self.dataset[i] for i in indices])
-        samples_stack = torch.stack(samples).to(self.dummy.device)
-        labels_stack = torch.tensor(labels, dtype=torch.int64).to(self.dummy.device)
+        samples_stack = torch.stack(samples).to(device)
+        labels_stack = torch.tensor(labels, dtype=torch.int64, device=device)
 
         return samples_stack, labels_stack

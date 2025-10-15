@@ -37,9 +37,13 @@ class FlowGenerator(Generator):
         self.simulator = EulerSimulator(self.ode)
 
     def sample_prior(
-        self, num_samples: int, shape: Tuple[int, ...], device: torch.device
+        self,
+        num_samples: int,
+        shape: Tuple[int, ...],
+        device: torch.device,
+        y: Tensor | None = None,
     ):
-        x0, _ = self.path.p_simple.sample(num_samples)
+        x0, _ = self.path.p_simple.sample(num_samples, y)
         return x0
 
     def generate(
@@ -84,9 +88,13 @@ class ScoreGenerator(Generator):
         self.simulator = EulerMaruyamaSimulator(self.sde)
 
     def sample_prior(
-        self, num_samples: int, shape: Tuple[int, ...], device: torch.device
+        self,
+        num_samples: int,
+        shape: Tuple[int, ...],
+        device: torch.device,
+        y: Tensor | None = None,
     ):
-        x0, _ = self.path.p_simple.sample(num_samples)
+        x0, _ = self.path.p_simple.sample(num_samples, y)
         return x0
 
     def generate(

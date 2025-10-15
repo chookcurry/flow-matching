@@ -3,9 +3,13 @@ from abc import ABC, abstractmethod
 from typing import Tuple
 
 from torch.func import vmap, jacrev
-from torch import Tensor, nn, randn_like
+from torch import Tensor, nn
 
-from diffusion.sampleables.sampleable import IsotropicGaussian
+from diffusion.sampleables.sampleable import (
+    ConditionalGaussian,
+    ConditionalGaussianHypersphere,
+    IsotropicGaussian,
+)
 from diffusion.sampleables.sampleable import Sampleable
 from diffusion.approaches.matching.odes_sdes import Backbone
 
@@ -17,29 +21,8 @@ class CondProbPath(nn.Module, ABC):
         self.p_simple = p_simple
         self.p_data = p_data
 
-    def sample_marginal_path(self, t: Tensor) -> Tensor:
-        # (B, 1, 1, 1)
-
-        B = t.shape[0]
-
-        # Sample conditioning variable z ~ p(z)
-        z, _ = self.sample_cond_var(B)
-        # (B, C, H, W)
-
-        # Sample conditional probability path x ~ p_t(x|z)
-        x = self.sample_cond_path(z, t)
-        # (B, C, H, W)
-
-        return x
-
     @abstractmethod
-    def sample_cond_var(self, B: int) -> Tuple[Tensor, Tensor | None]:
-        # z: (B, C, H, W)
-        # y: (B, y_dim)
-        pass
-
-    @abstractmethod
-    def sample_cond_path(self, z: Tensor, t: Tensor) -> Tensor:
+    def sample_cond_path(self, z: Tensor, t: Tensor, y: Tensor | None = None) -> Tensor:
         # z: (B, C, H, W)
         # t: (B, 1, 1, 1)
         # x: (B, C, H, W)
@@ -172,17 +155,72 @@ class GaussianCondProbPath(CondProbPath):
         self.alpha = alpha
         self.beta = beta
 
-    def sample_cond_var(self, B: int) -> Tuple[Tensor, Tensor | None]:
-        z, y = self.p_simple.sample(B)
-        # (B, C, H, W), (B, y_dim)
-
-        return z, y
-
-    def sample_cond_path(self, z: Tensor, t: Tensor) -> Tensor:
+    def sample_cond_path(self, z: Tensor, t: Tensor, y: Tensor | None = None) -> Tensor:
         # z: (B, C, H, W)
         # t: (B, 1, 1, 1)
 
-        x = self.alpha(t) * z + self.beta(t) * randn_like(z)
+        start, _ = self.p_simple.sample(z.shape[0], None)
+        x = self.alpha(t) * z + self.beta(t) * start
+        # (B, C, H, W)
+
+        return x
+
+    def cond_vf(self, x: Tensor, z: Tensor, t: Tensor) -> Tensor:
+        # x: (B, C, H, W)
+        # z: (B, C, H, W)
+        # t: (B, 1, 1, 1)
+
+        alpha_t = self.alpha(t)
+        beta_t = self.beta(t)
+        dt_alpha_t = self.alpha.dt(t)
+        dt_beta_t = self.beta.dt(t)
+        # (B, 1, 1, 1)
+
+        vf = (dt_alpha_t - dt_beta_t / beta_t * alpha_t) * z + dt_beta_t / beta_t * x
+        # (B, C, H, W)
+
+        return vf
+
+    def cond_score(self, x: Tensor, z: Tensor, t: Tensor) -> Tensor:
+        # x: (B, C, H, W)
+        # z: (B, C, H, W)
+        # t: (B, 1, 1, 1)
+
+        alpha_t = self.alpha(t)
+        beta_t = self.beta(t)
+        # (B, 1, 1, 1)
+
+        score = (alpha_t * z - x) / beta_t**2
+        # (B, C, H, W)
+
+        return score
+
+
+class TestGaussianCondProbPath(CondProbPath):
+    def __init__(
+        self,
+        num_classes: int,
+        p_data: Sampleable,
+        p_simple_shape: Tuple[int, ...],
+        alpha: Alpha,
+        beta: Beta,
+    ):
+        p_simple = ConditionalGaussian(num_classes, p_simple_shape)
+        # ConditionalGaussianHypersphere(num_classes, p_simple_shape)
+        super().__init__(p_simple, p_data)
+
+        self.alpha = alpha
+        self.beta = beta
+
+    def sample_cond_path(self, z: Tensor, t: Tensor, y: Tensor | None = None) -> Tensor:
+        # z: (B, C, H, W)
+        # t: (B, 1, 1, 1)
+        # y: (B)
+
+        assert y is not None
+
+        start, _ = self.p_simple.sample(z.shape[0], y)
+        x = self.alpha(t) * z + self.beta(t) * start
         # (B, C, H, W)
 
         return x
