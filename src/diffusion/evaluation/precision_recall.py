@@ -3,12 +3,6 @@ import torch
 from torch import Tensor
 
 
-def f1_score(precision: Tensor, recall: Tensor) -> Tensor:
-    if precision + recall == torch.zeros(1):
-        return torch.zeros(1)
-    return 2 * (precision * recall) / (precision + recall)
-
-
 def precision_recall_knn(
     real_feats: Tensor, gen_feats: Tensor, k: int = 3, batch_size: int = 300
 ) -> Tuple[Tensor, Tensor]:
@@ -57,3 +51,9 @@ def precision_recall_knn(
 def compute_pairwise_distances(x: Tensor, y: Tensor) -> Tensor:
     # x: [N, D], y: [M, D]
     return torch.cdist(x, y, p=2)  # Euclidean
+
+
+def f1_score(precision: Tensor, recall: Tensor) -> Tensor:
+    if precision + recall == torch.zeros(1):
+        return torch.zeros(1)
+    return 2 * (precision * recall) / (precision + recall)

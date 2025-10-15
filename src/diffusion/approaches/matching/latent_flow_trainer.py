@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch import Tensor
 from diffusion.approaches.matching.flow_trainer import sample_time_uniform
-from diffusion.evaluation.f1 import f1_score, precision_recall_knn
+from diffusion.evaluation.precision_recall import f1_score, precision_recall_knn
 from diffusion.evaluation.kid import kernel_inception_distance_poly_biased
 from diffusion.architectures.autoencoders.autoencoder import AE, AEC, CAE, CAEC
 from diffusion.approaches.matching.odes_sdes import GuidedNeuralODE, Backbone
