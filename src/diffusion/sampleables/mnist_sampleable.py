@@ -37,7 +37,7 @@ class MNISTSampleable(nn.Module, Sampleable):
 
     def sample(
         self, num_samples: int, y: Tensor | None = None
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[Tensor, Tensor]:
         device = self.dummy.device
 
         if y is None:

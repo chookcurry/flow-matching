@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 from diffusion.sampleables.sampleable import Sampleable
 from sklearn.manifold import TSNE  # type: ignore
 import numpy as np
-import umap  # type: ignore
 
 
 def compute_samples(
@@ -39,7 +38,7 @@ def compute_samples(
         x1_list.append(x1)
 
         # Sample real data for this class
-        real_samples, _ = p_data.sample(samples_per_class, class_label)
+        real_samples, _ = p_data.sample(samples_per_class, y)
         real_samples = real_samples.to(device)
         real_list.append(real_samples)
 

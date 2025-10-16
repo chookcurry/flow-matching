@@ -244,6 +244,11 @@ class DecoderBlock(nn.Module):
         x = self.upsample(x, cond)
         # (B, in_channels, H, W)
 
+        if x.shape[-2:] != skip.shape[-2:]:
+            x = nn.functional.interpolate(
+                x, size=skip.shape[-2:], mode="bilinear", align_corners=False
+            )
+
         x = torch.cat([x, skip], dim=1)
         # (B, 2 * in_channels, H, W)
 

@@ -78,8 +78,6 @@ class Trainer(ABC):
 
             # validate
             val_loss = self.get_val_loss(val_batch_size, device)
-            logger.info(f"val loss: {val_loss}")
-            run.log({"val/loss": val_loss.item()}) if run else None
 
             # update when val loss improves
             current_val_loss = float(val_loss.item())
@@ -90,9 +88,14 @@ class Trainer(ABC):
             else:
                 patience_counter += 1
 
+            logger.info(f"val loss: {val_loss}, best val loss: {best_val_loss}")
+            run.log({"val/loss": val_loss.item()}) if run else None
+
             # early stopping
             if patience_counter >= patience:
-                logger.info(f"Early stopping triggered at epoch {epoch}/{num_epochs}")
+                logger.info(
+                    f"Early stopping triggered at epoch {epoch}/{num_epochs} with best val loss: {best_val_loss}"
+                )
                 break
 
             # val_metrics = self.get_val_metrics(device)

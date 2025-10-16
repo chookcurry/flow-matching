@@ -18,11 +18,11 @@ class Encoder(ABC, nn.Module):
 # CNN Model
 # ----------------------
 class SimpleCNN(Encoder):
-    def __init__(self, num_classes: int = 10):
+    def __init__(self, in_c: int = 1, num_classes: int = 10):
         super().__init__()
 
         self.encoder = nn.Sequential(
-            nn.Conv2d(1, 32, 3, 1, 1),  # 32x32 -> 32x32
+            nn.Conv2d(in_c, 32, 3, 1, 1),  # 32x32 -> 32x32
             nn.ReLU(),
             nn.MaxPool2d(2),  # 32x32 -> 16x16
             nn.Conv2d(32, 64, 3, 1, 1),  # 16x16 -> 16x16
@@ -44,7 +44,7 @@ class SimpleCNN(Encoder):
 # ----------------------
 # Trainer Class
 # ----------------------
-class MNISTClassifierTrainer(Trainer):
+class ClassifierTrainer(Trainer):
     def __init__(
         self,
         classifier: nn.Module,
@@ -76,26 +76,20 @@ class MNISTClassifierTrainer(Trainer):
         return loss
 
     @torch.no_grad()
-    def get_val_metrics(self, device: torch.device) -> Dict[str, float]:
+    def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
         self.model.eval()
 
         # Sample one batch
-        x, y = self.val_data.sample(self.val_num_samples)
+        x, y = self.val_data.sample(batch_size)
         assert y is not None
         x, y = x.to(device), y.to(device)
 
         # Forward pass
         logits: Tensor = self.model(x)
-        loss: Tensor = self.criterion(logits, y)
+        # loss: Tensor = self.criterion(logits, y)
 
         # Compute accuracy
         _, preds = logits.max(1)
-        accuracy = preds.eq(y).float().mean().item()
+        accuracy = preds.eq(y).float().mean()
 
-        # Return metrics
-        metrics = {
-            "loss": loss.item(),
-            "accuracy": accuracy,
-        }
-
-        return metrics
+        return 1 / (accuracy + 1e-6)
