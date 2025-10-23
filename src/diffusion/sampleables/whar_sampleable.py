@@ -18,8 +18,9 @@ class TrainValTest(Enum):
     TEST = "test"
 
 
-def stft_transform_combine(x: Tensor) -> Tensor:
-    x = stft_transform(x, n_fft=62, hop_length=4)
+def stft_transform_combine(x: Tensor, n_fft: int = 62, hop_length: int = 4) -> Tensor:
+    x = stft_transform(x, n_fft=n_fft, hop_length=hop_length)
+    # print(x.shape)
     x = compress_stft(x)
     C, RI, H, W = x.shape
     x = x.view(C * RI, H, W)
@@ -36,7 +37,7 @@ class WHARSampleable(nn.Module, Sampleable):
     ):
         super().__init__()
 
-        self.dummy = nn.Buffer(torch.zeros(1))  # ← unchanged
+        self.dummy = nn.Buffer(torch.zeros(1))
 
         self.cfg = cfg
         self.cfg.transform = None
@@ -62,6 +63,7 @@ class WHARSampleable(nn.Module, Sampleable):
             case TrainValTest.TEST:
                 self.indices = self.test_indices
 
+        self.sampler.plot_indices_statistics(self.indices)
         self.num_classes = len(self.sampler.get_class_weights(self.indices).keys())
         self.shape = tuple(self.sample(1)[0][0].shape)
 

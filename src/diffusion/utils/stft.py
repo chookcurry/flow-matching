@@ -1,3 +1,4 @@
+import math
 from matplotlib import pyplot as plt
 import torch
 from torch import Tensor
@@ -48,7 +49,6 @@ def compress_stft(
     # c_tilde = beta * |c|^alpha * exp(i * angle(c))
 
     # (channels, 2, freq_bins, time_steps)
-
     real = stft_separated[:, 0]
     imag = stft_separated[:, 1]
     c = torch.complex(real, imag)
@@ -180,26 +180,66 @@ def decompress_stft_tanh(stft_compressed: Tensor, scale: float = 1.0) -> Tensor:
     return torch.stack([c.real, c.imag], dim=1)
 
 
-def plot_spectrogram_grid(stft_separated: Tensor) -> None:
-    # (channels, 2, freq_bins, time_steps)
+def plot_spectrogram_grid(stft_separated: torch.Tensor) -> None:
+    """
+    Plot a single-row grid of STFT magnitude spectrograms with a shared colorbar.
 
-    assert stft_separated.ndim == 4
-    channels = stft_separated.shape[0]
-    assert channels == 9
+    Args:
+        stft_separated (Tensor): STFT tensor of shape
+            (channels, 2, freq_bins, time_steps) or (channels*2, freq_bins, time_steps)
+            where [:, 0] = real, [:, 1] = imag
+    """
 
+    # Allow both (C,2,H,W) and flattened (C*2,H,W)
+    if stft_separated.ndim == 3:
+        C_RI, H, W = stft_separated.shape
+        RI = 2
+        if C_RI % RI != 0:
+            raise ValueError(
+                f"Expected channel dimension divisible by {RI}, got {C_RI}"
+            )
+        C = C_RI // RI
+        stft_separated = stft_separated.view(C, RI, H, W)
+    elif stft_separated.ndim == 4:
+        C = stft_separated.shape[0]
+    else:
+        raise ValueError(
+            f"Invalid tensor shape {stft_separated.shape}, expected (C,2,H,W) or (C*2,H,W)"
+        )
+
+    # Compute magnitude
     real = stft_separated[:, 0]
     imag = stft_separated[:, 1]
     magnitude = torch.sqrt(real**2 + imag**2)
 
-    _, axs = plt.subplots(3, 3, figsize=(6, 6))
-    for i, ax in enumerate(axs.flatten()):
-        ax.imshow(
+    # Create a single-row grid
+    fig, axs = plt.subplots(1, C, figsize=(4 * C, 3), sharey=True)
+    axs = axs if C > 1 else [axs]
+
+    # Find global vmin/vmax for consistent color scaling
+    vmin = magnitude.min().item()
+    vmax = magnitude.max().item()
+
+    # Plot each channel
+    for i, ax in enumerate(axs):
+        im = ax.imshow(
             magnitude[i].detach().cpu().numpy(),
             origin="lower",
-            aspect="equal",
+            aspect="auto",
             cmap="magma",
+            vmin=vmin,
+            vmax=vmax,
         )
-        ax.axis("off")
+        ax.set_title(f"Ch {i + 1}", fontsize=9)
+        ax.set_xlabel("Time frames")
+        if i == 0:
+            ax.set_ylabel("Frequency bins")
+        else:
+            ax.set_ylabel("")
 
-    plt.tight_layout()
+    # Add a single colorbar for all subplots
+    cbar = fig.colorbar(im, ax=axs, orientation="vertical", fraction=0.02, pad=0.02)  # type: ignore
+    cbar.set_label("Magnitude", rotation=270, labelpad=15)
+
+    # plt.tight_layout()
     plt.show()

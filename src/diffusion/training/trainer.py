@@ -31,7 +31,7 @@ class Trainer(ABC):
         validate: bool = True,
         val_batch_size: int = 500,
         patience: int | None = 5,
-        decreasing: bool = False,
+        decreasing: bool = True,
         run: Run | None = None,
     ) -> dict[str, Any]:
         size_b = model_size_b(self.model)
@@ -108,7 +108,6 @@ class Trainer(ABC):
             # logger.info([f"{key}: {value:.6f}" for key, value in val_metrics.items()])
             # run.log({f"val/{k}": v for k, v in val_metrics.items()}) if run else None
 
-        self.model.load_state_dict(best_model_state)
         return best_model_state
 
     @abstractmethod
