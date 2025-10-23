@@ -20,7 +20,7 @@ class TrainValTest(Enum):
 
 def stft_transform_combine(x: Tensor) -> Tensor:
     x = stft_transform(x, n_fft=62, hop_length=4)
-    # x = compress_stft(x)
+    x = compress_stft(x)
     C, RI, H, W = x.shape
     x = x.view(C * RI, H, W)
     return x

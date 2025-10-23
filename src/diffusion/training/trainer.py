@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any
 import torch
 from tqdm import tqdm
 from torch import Tensor
@@ -30,7 +30,8 @@ class Trainer(ABC):
         lr: float = 1e-3,
         validate: bool = True,
         val_batch_size: int = 500,
-        patience: int = 5,
+        patience: int | None = 5,
+        decreasing: bool = False,
         run: Run | None = None,
     ) -> dict[str, Any]:
         size_b = model_size_b(self.model)
@@ -44,8 +45,8 @@ class Trainer(ABC):
         )
 
         # Early stopping setup
-        best_val_loss = float("inf")
-        current_val_loss = float("inf")
+        best_val_loss = float("inf") if decreasing else float("-inf")
+        current_val_loss = float("inf") if decreasing else float("-inf")
         best_model_state = self.model.state_dict()
         patience_counter = 0
 
@@ -81,7 +82,12 @@ class Trainer(ABC):
 
             # update when val loss improves
             current_val_loss = float(val_loss.item())
-            if current_val_loss < best_val_loss:
+            condition = (
+                current_val_loss < best_val_loss
+                if decreasing
+                else current_val_loss > best_val_loss
+            )
+            if condition:
                 best_val_loss = current_val_loss
                 best_model_state = self.model.state_dict()
                 patience_counter = 0
@@ -92,7 +98,7 @@ class Trainer(ABC):
             run.log({"val/loss": val_loss.item()}) if run else None
 
             # early stopping
-            if patience_counter >= patience:
+            if patience is not None and patience_counter >= patience:
                 logger.info(
                     f"Early stopping triggered at epoch {epoch}/{num_epochs} with best val loss: {best_val_loss}"
                 )
