@@ -1,4 +1,3 @@
-import math
 from matplotlib import pyplot as plt
 import torch
 from torch import Tensor
@@ -100,86 +99,6 @@ def decompress_stft(
     return torch.stack([real_orig, imag_orig], dim=1)
 
 
-def compress_stft_log(stft_separated: Tensor) -> Tensor:
-    """
-    Fully invertible log-based STFT compression.
-    No HF damping here.
-    """
-    real = stft_separated[:, 0]
-    imag = stft_separated[:, 1]
-    c = torch.complex(real, imag)
-
-    magnitude = torch.abs(c)
-    phase = torch.angle(c)
-
-    # Log compression
-    magnitude_compressed = torch.log1p(magnitude)
-
-    # Rebuild complex coefficients
-    c_tilde = magnitude_compressed * torch.exp(1j * phase)
-    return torch.stack([c_tilde.real, c_tilde.imag], dim=1)
-
-
-def decompress_stft_log(stft_compressed: Tensor) -> Tensor:
-    """
-    Inverse of compress_stft_invertible
-    """
-    real = stft_compressed[:, 0]
-    imag = stft_compressed[:, 1]
-    c_tilde = torch.complex(real, imag)
-
-    magnitude_tilde = torch.abs(c_tilde)
-    phase_tilde = torch.angle(c_tilde)
-
-    magnitude = torch.expm1(magnitude_tilde)
-
-    c = magnitude * torch.exp(1j * phase_tilde)
-    return torch.stack([c.real, c.imag], dim=1)
-
-
-def compress_stft_tanh(stft_separated: Tensor, scale: float = 1.0) -> Tensor:
-    """
-    Compress STFT magnitudes to [-1, 1] using tanh, fully invertible without per-sample stats.
-
-    Args:
-        stft_separated: Tensor (channels, 2, freq_bins, time_steps)
-        scale: Controls compression strength
-
-    Returns:
-        Compressed STFT tensor in [-1,1]
-    """
-    real = stft_separated[:, 0]
-    imag = stft_separated[:, 1]
-    c = torch.complex(real, imag)
-
-    magnitude = torch.abs(c)
-    phase = torch.angle(c)
-
-    # Compress magnitude to [-1,1]
-    magnitude_scaled = torch.tanh(scale * magnitude)
-
-    # Rebuild complex
-    c_scaled = magnitude_scaled * torch.exp(1j * phase)
-    return torch.stack([c_scaled.real, c_scaled.imag], dim=1)
-
-
-def decompress_stft_tanh(stft_compressed: Tensor, scale: float = 1.0) -> Tensor:
-    real = stft_compressed[:, 0]
-    imag = stft_compressed[:, 1]
-    c_scaled = torch.complex(real, imag)
-
-    magnitude_scaled = torch.abs(c_scaled).clamp(-0.999, 0.999)
-    # clamp to avoid atanh issues
-    phase_scaled = torch.angle(c_scaled)
-
-    magnitude = (
-        (1 / scale) * 0.5 * torch.log((1 + magnitude_scaled) / (1 - magnitude_scaled))
-    )
-    c = magnitude * torch.exp(1j * phase_scaled)
-
-    return torch.stack([c.real, c.imag], dim=1)
-
-
 def plot_spectrogram_grid(stft_separated: torch.Tensor) -> None:
     """
     Plot a single-row grid of STFT magnitude spectrograms with a shared colorbar.
@@ -242,4 +161,45 @@ def plot_spectrogram_grid(stft_separated: torch.Tensor) -> None:
     cbar.set_label("Magnitude", rotation=270, labelpad=15)
 
     # plt.tight_layout()
+    plt.show()
+
+
+def plot_signal_grid(
+    stft_separated: torch.Tensor, n_fft: int, hop_length: int, length: int
+) -> None:
+    # Allow both (C,2,H,W) and flattened (C*2,H,W)
+    if stft_separated.ndim == 3:
+        C_RI, H, W = stft_separated.shape
+        RI = 2
+        if C_RI % RI != 0:
+            raise ValueError(
+                f"Expected channel dimension divisible by {RI}, got {C_RI}"
+            )
+        C = C_RI // RI
+        stft_separated = stft_separated.view(C, RI, H, W)
+    elif stft_separated.ndim == 4:
+        C = stft_separated.shape[0]
+    else:
+        raise ValueError(
+            f"Invalid tensor shape {stft_separated.shape}, expected (C,2,H,W) or (C*2,H,W)"
+        )
+
+    decompressed = decompress_stft(stft_separated)
+    signal = istft_transform(decompressed, n_fft, hop_length, length)
+    # (time, channels)
+
+    # plot on single plot
+    fig, axs = plt.subplots(1, C, figsize=(4 * C, 3), sharey=True)
+    axs = axs if C > 1 else [axs]
+
+    for i, ax in enumerate(axs):
+        ax.plot(signal[:, i].detach().cpu().numpy())
+        ax.set_title(f"Ch {i + 1}", fontsize=9)
+        ax.set_xlabel("Time frames")
+        if i == 0:
+            ax.set_ylabel("Amplitude")
+        else:
+            ax.set_ylabel("")
+
+    plt.tight_layout()
     plt.show()

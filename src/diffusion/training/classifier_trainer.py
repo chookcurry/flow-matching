@@ -16,7 +16,6 @@ class ClassifierTrainer(Trainer):
         num_classes: int,
         lr: float = 1e-3,
         batch_size: int = 64,
-        val_num_samples: int = 1000,
     ):
         super().__init__(classifier)
 
@@ -24,7 +23,6 @@ class ClassifierTrainer(Trainer):
         self.val_data = val_data
         self.num_classes = num_classes
         self.batch_size = batch_size
-        self.val_num_samples = val_num_samples
 
         self.optimizer = self.get_optimizer(lr)
         self.criterion = nn.CrossEntropyLoss()
@@ -40,9 +38,6 @@ class ClassifierTrainer(Trainer):
 
     @torch.no_grad()
     def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
-        self.model.eval()
-
-        # Sample one batch
         x, y = self.val_data.sample(batch_size)
         assert y is not None
         x, y = x.to(device), y.to(device)

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Tuple
 
 import torch
 from torch import Tensor, nn
@@ -20,7 +20,6 @@ class TrainValTest(Enum):
 
 def stft_transform_combine(x: Tensor, n_fft: int = 62, hop_length: int = 4) -> Tensor:
     x = stft_transform(x, n_fft=n_fft, hop_length=hop_length)
-    # print(x.shape)
     x = compress_stft(x)
     C, RI, H, W = x.shape
     x = x.view(C * RI, H, W)
@@ -50,8 +49,10 @@ class WHARSampleable(nn.Module, Sampleable):
         self.train_indices, self.val_indices = split_indices(
             self.cfg,
             self.sampler.train_indices,
-            percentages=(0.9, 0.1),
+            percentages=(0.8, 0.2),
         )
+
+        assert not set(self.train_indices).intersection(set(self.val_indices))
 
         self.test_indices = self.sampler.test_indices
 
@@ -65,49 +66,46 @@ class WHARSampleable(nn.Module, Sampleable):
 
         self.sampler.plot_indices_statistics(self.indices)
         self.num_classes = len(self.sampler.get_class_weights(self.indices).keys())
-        self.shape = tuple(self.sample(1)[0][0].shape)
 
-    def sample_from_indices(
-        self,
-        num_samples: int,
-        indices: List[int],
-        y: Optional[Tensor] = None,
-        seed: Optional[int] = None,
+        sample = self.sampler.sample(1, self.indices)[1][0]
+        self.signal_shape = tuple(sample.shape)
+        self.shape = tuple(self.transform(sample).shape)
+
+    def sample(
+        self, num_samples: int, y: Tensor | None = None, seed: int | None = None
     ) -> Tuple[Tensor, Tensor]:
-        # Generate random class labels if none provided
         if y is None:
             y = torch.randint(
-                0,
-                self.num_classes,
-                (num_samples,),
+                low=0,
+                high=self.num_classes,
+                size=(num_samples,),
                 device=self.dummy.device,
             )
         else:
-            assert y.shape[0] == num_samples, (
-                f"y must have shape ({num_samples},), got {y.shape}"
-            )
+            assert y.shape[0] == num_samples
 
-        xs, ys = [], []
+        xs = torch.empty((num_samples, *self.shape), device=self.dummy.device)
+        ys = torch.empty((num_samples,), device=self.dummy.device, dtype=torch.long)
 
-        # Loop per label (each sample can have different class)
-        for label in y.tolist():
+        unique_labels, counts = torch.unique(y, return_counts=True)
+
+        for label, count in zip(unique_labels.tolist(), counts.tolist()):
             sample_y, sample_x = self.sampler.sample(
-                1, indices, activity_id=label, seed=seed
+                count, self.indices, activity_id=label, seed=seed
             )
-            xs.append(sample_x[0])
-            ys.append(sample_y[0])
 
-        x = torch.stack(
-            [self.transform(xi) if self.transform is not None else xi for xi in xs]
-        )
-        y = torch.tensor(ys, device=self.dummy.device, dtype=torch.long)
+            sample_x = torch.stack(
+                [
+                    self.transform(xi) if self.transform is not None else xi
+                    for xi in sample_x
+                ]
+            )
 
-        return x, y
+            mask = y == label
+            xs[mask] = sample_x
+            ys[mask] = sample_y
 
-    def sample(
-        self, num_samples: int, y: Optional[Tensor] = None, seed: Optional[int] = None
-    ) -> Tuple[Tensor, Tensor]:
-        return self.sample_from_indices(num_samples, self.indices, y, seed)
+        return xs, ys
 
-    def get_class_weights(self, indices: List[int]) -> Dict[int, float]:
-        return self.sampler.get_class_weights(indices)
+    def get_class_weights(self) -> Dict[int, float]:
+        return self.sampler.get_class_weights(self.indices)
