@@ -93,3 +93,33 @@ def kernel_inception_distance_rbf(x: Tensor, y: Tensor, alpha: float = 0.001) ->
 
     # MMD² (KID)
     return sum_K_xx + sum_K_yy - 2 * sum_K_xy
+
+
+def kernel_inception_distance_rbf_biased(
+    x: Tensor, y: Tensor, alpha: float = 0.001
+) -> Tensor:
+    # RBF kernel: K(x, y) = exp(-alpha * ||x - y||^2)
+
+    B = x.size(0)
+    assert x.shape == y.shape, "x and y must have the same shape"
+
+    # Flatten spatial dimensions
+    x = x.view(B, -1)
+    y = y.view(B, -1)
+
+    # Compute dot products
+    xx = torch.mm(x, x.t())  # [B, B]
+    yy = torch.mm(y, y.t())  # [B, B]
+    xy = torch.mm(x, y.t())  # [B, B]
+
+    # Compute squared norms
+    rx = xx.diag().unsqueeze(0).expand_as(xx)
+    ry = yy.diag().unsqueeze(0).expand_as(yy)
+
+    # RBF kernels
+    K_xx = torch.exp(-alpha * (rx.t() + rx - 2 * xx))
+    K_yy = torch.exp(-alpha * (ry.t() + ry - 2 * yy))
+    K_xy = torch.exp(-alpha * (rx.t() + ry - 2 * xy))
+
+    # Biased MMD² estimate (includes diagonals)
+    return K_xx.mean() + K_yy.mean() - 2 * K_xy.mean()
