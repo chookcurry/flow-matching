@@ -1,7 +1,8 @@
 from typing import Dict, Tuple
 from torch import Tensor, device
 import torch
-from diffusion.architectures.classifiers.mnist_classifier import Encoder
+
+from diffusion.architectures.classifiers.encoder import Encoder
 from diffusion.evaluation.density_coverage import density_coverage_knn
 from diffusion.evaluation.precision_recall import f1_score, precision_recall_knn
 from diffusion.evaluation.generator import Generator
@@ -46,7 +47,7 @@ def compute_samples(
 
 
 def visualize_samples_per_class(
-    x1_list: list[torch.Tensor], real_list: list[torch.Tensor], n: int = 5
+    x1_list: list[Tensor], real_list: list[Tensor], n: int = 5
 ) -> None:
     num_classes = len(x1_list)
     n = min(n, x1_list[0].shape[0])
@@ -106,12 +107,12 @@ def compute_features(
 
 
 def visualize_tsne_per_class(
-    x1_features: list[torch.Tensor],
-    real_features: list[torch.Tensor],
+    x1_features: list[Tensor],
+    real_features: list[Tensor],
     perplexity: float = 30.0,
     n_iter: int = 1000,
     title: str = "t-SNE Visualization of Real vs Generated Features per Class",
-):
+) -> None:
     """
     Visualize feature embeddings using t-SNE, coloring each class differently and
     distinguishing real vs generated samples.
@@ -196,8 +197,8 @@ def visualize_tsne_per_class(
 
 
 # def visualize_umap_per_class(
-#     x1_features: list[torch.Tensor],
-#     real_features: list[torch.Tensor],
+#     x1_features: list[Tensor],
+#     real_features: list[Tensor],
 #     n_neighbors: int = 15,
 #     min_dist: float = 0.1,
 #     metric: str = "euclidean",
@@ -319,7 +320,7 @@ def evaluate_features(
     return metrics_per_class
 
 
-def plot_metrics_per_class(metrics_per_class: Dict[int, Dict[str, float]]):
+def plot_metrics_per_class(metrics_per_class: Dict[int, Dict[str, float]]) -> None:
     # Extract metric names (assume all classes have the same metrics)
     metric_names = list(next(iter(metrics_per_class.values())).keys())
     num_metrics = len(metric_names)
@@ -355,8 +356,8 @@ def plot_metrics_per_class(metrics_per_class: Dict[int, Dict[str, float]]):
 def compare_metrics_per_class(
     metrics_a: Dict[int, Dict[str, float]],
     metrics_b: Dict[int, Dict[str, float]],
-    labels=("Model A", "Model B"),
-):
+    labels: Tuple[str, str] = ("Model A", "Model B"),
+) -> None:
     """
     Compare per-class evaluation metrics between two models.
 

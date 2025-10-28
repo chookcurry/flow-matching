@@ -5,13 +5,9 @@ from typing import Tuple
 from torch.func import vmap, jacrev
 from torch import Tensor, nn
 
-from diffusion.sampleables.sampleable import (
-    ConditionalGaussian,
-    ConditionalGaussianHypersphere,
-    IsotropicGaussian,
-)
+from diffusion.sampleables.sampleable import IsotropicGaussian
 from diffusion.sampleables.sampleable import Sampleable
-from diffusion.approaches.matching.odes_sdes import Backbone
+from diffusion.architectures.backbones.backbone import Backbone
 
 
 class CondProbPath(nn.Module, ABC):
@@ -126,7 +122,9 @@ class LinearBeta(Beta):
 
 
 class ScoreFromVectorFieldForGaussianProbPath(Backbone):
-    def __init__(self, vf: Backbone, alpha: Alpha, beta: Beta) -> None:
+    def __init__(
+        self, vf: Backbone, alpha: Alpha = LinearAlpha(), beta: Beta = LinearBeta()
+    ) -> None:
         super().__init__()
         self.vf = vf
         self.alpha = alpha
@@ -146,8 +144,8 @@ class GaussianCondProbPath(CondProbPath):
         self,
         p_data: Sampleable,
         p_simple_shape: Tuple[int, ...],
-        alpha: Alpha,
-        beta: Beta,
+        alpha: Alpha = LinearAlpha(),
+        beta: Beta = LinearBeta(),
     ):
         p_simple = IsotropicGaussian(shape=p_simple_shape)
         super().__init__(p_simple, p_data)
@@ -196,61 +194,61 @@ class GaussianCondProbPath(CondProbPath):
         return score
 
 
-class TestGaussianCondProbPath(CondProbPath):
-    def __init__(
-        self,
-        num_classes: int,
-        p_data: Sampleable,
-        p_simple_shape: Tuple[int, ...],
-        alpha: Alpha,
-        beta: Beta,
-    ):
-        p_simple = ConditionalGaussian(num_classes, p_simple_shape)
-        # ConditionalGaussianHypersphere(num_classes, p_simple_shape)
-        super().__init__(p_simple, p_data)
+# class TestGaussianCondProbPath(CondProbPath):
+#     def __init__(
+#         self,
+#         num_classes: int,
+#         p_data: Sampleable,
+#         p_simple_shape: Tuple[int, ...],
+#         alpha: Alpha,
+#         beta: Beta,
+#     ):
+#         p_simple = ConditionalGaussian(num_classes, p_simple_shape)
+#         # ConditionalGaussianHypersphere(num_classes, p_simple_shape)
+#         super().__init__(p_simple, p_data)
 
-        self.alpha = alpha
-        self.beta = beta
+#         self.alpha = alpha
+#         self.beta = beta
 
-    def sample_cond_path(self, z: Tensor, t: Tensor, y: Tensor | None = None) -> Tensor:
-        # z: (B, C, H, W)
-        # t: (B, 1, 1, 1)
-        # y: (B)
+#     def sample_cond_path(self, z: Tensor, t: Tensor, y: Tensor | None = None) -> Tensor:
+#         # z: (B, C, H, W)
+#         # t: (B, 1, 1, 1)
+#         # y: (B)
 
-        assert y is not None
+#         assert y is not None
 
-        start, _ = self.p_simple.sample(z.shape[0], y)
-        x = self.alpha(t) * z + self.beta(t) * start
-        # (B, C, H, W)
+#         start, _ = self.p_simple.sample(z.shape[0], y)
+#         x = self.alpha(t) * z + self.beta(t) * start
+#         # (B, C, H, W)
 
-        return x
+#         return x
 
-    def cond_vf(self, x: Tensor, z: Tensor, t: Tensor) -> Tensor:
-        # x: (B, C, H, W)
-        # z: (B, C, H, W)
-        # t: (B, 1, 1, 1)
+#     def cond_vf(self, x: Tensor, z: Tensor, t: Tensor) -> Tensor:
+#         # x: (B, C, H, W)
+#         # z: (B, C, H, W)
+#         # t: (B, 1, 1, 1)
 
-        alpha_t = self.alpha(t)
-        beta_t = self.beta(t)
-        dt_alpha_t = self.alpha.dt(t)
-        dt_beta_t = self.beta.dt(t)
-        # (B, 1, 1, 1)
+#         alpha_t = self.alpha(t)
+#         beta_t = self.beta(t)
+#         dt_alpha_t = self.alpha.dt(t)
+#         dt_beta_t = self.beta.dt(t)
+#         # (B, 1, 1, 1)
 
-        vf = (dt_alpha_t - dt_beta_t / beta_t * alpha_t) * z + dt_beta_t / beta_t * x
-        # (B, C, H, W)
+#         vf = (dt_alpha_t - dt_beta_t / beta_t * alpha_t) * z + dt_beta_t / beta_t * x
+#         # (B, C, H, W)
 
-        return vf
+#         return vf
 
-    def cond_score(self, x: Tensor, z: Tensor, t: Tensor) -> Tensor:
-        # x: (B, C, H, W)
-        # z: (B, C, H, W)
-        # t: (B, 1, 1, 1)
+#     def cond_score(self, x: Tensor, z: Tensor, t: Tensor) -> Tensor:
+#         # x: (B, C, H, W)
+#         # z: (B, C, H, W)
+#         # t: (B, 1, 1, 1)
 
-        alpha_t = self.alpha(t)
-        beta_t = self.beta(t)
-        # (B, 1, 1, 1)
+#         alpha_t = self.alpha(t)
+#         beta_t = self.beta(t)
+#         # (B, 1, 1, 1)
 
-        score = (alpha_t * z - x) / beta_t**2
-        # (B, C, H, W)
+#         score = (alpha_t * z - x) / beta_t**2
+#         # (B, C, H, W)
 
-        return score
+#         return score

@@ -31,7 +31,7 @@ class BackwardProcess:
         # Classifier-free guidance: compute once efficiently
         # ------------------------------------------------
         if guidance_scale is None:
-            eps_pred = self.backbone(x_t, t, y)
+            eps_pred: Tensor = self.backbone(x_t, t, y)
         else:
             if y.dtype in (torch.int64, torch.int32):
                 uncond = torch.full_like(y, self.null_class)
@@ -43,7 +43,7 @@ class BackwardProcess:
             t_in = torch.cat([t, t], dim=0)
             cond_in = torch.cat([uncond, y], dim=0)
 
-            eps_all = self.backbone(x_in, t_in, cond_in)
+            eps_all: Tensor = self.backbone(x_in, t_in, cond_in)
             eps_uncond, eps_cond = eps_all.chunk(2, dim=0)
             eps_pred = eps_uncond + guidance_scale * (eps_cond - eps_uncond)
 

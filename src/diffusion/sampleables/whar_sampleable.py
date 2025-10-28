@@ -1,10 +1,10 @@
 from enum import Enum
-from typing import Dict, Tuple
+from typing import Callable, Dict, Tuple
 
 import torch
 from torch import Tensor, nn
 
-from whar_datasets.support.getter import WHARConfig
+from whar_datasets.core.config import WHARConfig
 from whar_datasets.core.splitting import split_indices
 from whar_datasets.adapters.sampler import Sampler
 
@@ -32,7 +32,7 @@ class WHARSampleable(nn.Module, Sampleable):
         cfg: WHARConfig,
         scv_group_index: int = 0,
         fold: TrainValTest = TrainValTest.TRAIN,
-        transform=stft_transform_combine,
+        transform: Callable[[Tensor], Tensor] = stft_transform_combine,
     ):
         super().__init__()
 
@@ -94,14 +94,16 @@ class WHARSampleable(nn.Module, Sampleable):
                 count, self.indices, activity_id=label, seed=seed
             )
 
+            sample_y = sample_y.to(self.dummy.device)
             sample_x = torch.stack(
                 [
                     self.transform(xi) if self.transform is not None else xi
                     for xi in sample_x
                 ]
-            )
+            ).to(self.dummy.device)
 
             mask = y == label
+
             xs[mask] = sample_x
             ys[mask] = sample_y
 

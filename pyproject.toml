@@ -36,3 +36,6 @@ build-backend = "hatchling.build"
 
 [tool.uv.sources]
 whar-datasets = { git = "https://github.com/teco-kit/whar-datasets.git" }
+
+[tool.ruff.lint]
+ignore = ["E731"]

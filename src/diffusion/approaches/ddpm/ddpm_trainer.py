@@ -1,12 +1,11 @@
-from typing import Dict
-
 import torch
 from torch import Tensor
 import torch.nn.functional as F
 
 from diffusion.architectures.backbones.backbone import Backbone
 from diffusion.training.trainer import Trainer
-from diffusion.approaches.ddpm.backward_process import BackwardProcess, ForwardProcess
+from diffusion.approaches.ddpm.backward_process import BackwardProcess
+from diffusion.approaches.ddpm.forward_process import ForwardProcess
 from diffusion.sampleables.sampleable import Sampleable
 
 

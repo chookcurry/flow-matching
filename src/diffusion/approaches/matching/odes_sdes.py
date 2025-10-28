@@ -69,11 +69,11 @@ class GuidedNeuralODE(ODE):
 
 
 def linear_sigma(t: Tensor) -> Tensor:
-    return 1 - t
+    return torch.ones_like(t) - t
 
 
 def tent_sigma(t: Tensor) -> Tensor:
-    return t * (1 - t)
+    return t * (torch.ones_like(t) - t)
 
 
 class GuidedNeuralSDE(SDE):

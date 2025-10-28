@@ -2,16 +2,11 @@ from typing import Tuple
 from torch import Tensor
 import torch
 
+from diffusion.architectures.backbones.backbone import Backbone
 from diffusion.evaluation.generator import Generator
-from diffusion.approaches.matching.odes_sdes import (
-    GuidedNeuralODE,
-    Backbone,
-    GuidedNeuralSDE,
-)
+from diffusion.approaches.matching.odes_sdes import GuidedNeuralODE, GuidedNeuralSDE
 from diffusion.approaches.matching.prob_paths import (
     CondProbPath,
-    LinearAlpha,
-    LinearBeta,
     ScoreFromVectorFieldForGaussianProbPath,
 )
 from diffusion.approaches.matching.simulators import (
@@ -42,7 +37,7 @@ class FlowGenerator(Generator):
         shape: Tuple[int, ...],
         device: torch.device,
         y: Tensor | None = None,
-    ):
+    ) -> Tensor:
         x0, _ = self.path.p_simple.sample(num_samples, y)
         return x0
 
@@ -80,9 +75,7 @@ class ScoreGenerator(Generator):
         self.num_timesteps = num_timesteps
         self.device = device
 
-        score = ScoreFromVectorFieldForGaussianProbPath(
-            backbone, LinearAlpha(), LinearBeta()
-        )
+        score = ScoreFromVectorFieldForGaussianProbPath(backbone)
 
         self.sde = GuidedNeuralSDE(backbone, score, null_class)
         self.simulator = EulerMaruyamaSimulator(self.sde)
@@ -93,7 +86,7 @@ class ScoreGenerator(Generator):
         shape: Tuple[int, ...],
         device: torch.device,
         y: Tensor | None = None,
-    ):
+    ) -> Tensor:
         x0, _ = self.path.p_simple.sample(num_samples, y)
         return x0
 
