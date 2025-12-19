@@ -1,5 +1,5 @@
-from matplotlib import pyplot as plt
 import torch
+from matplotlib import pyplot as plt
 from torch import Tensor
 
 

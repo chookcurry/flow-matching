@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-from torch import Tensor
 import torch
+from torch import Tensor
 
 
 class Generator(ABC):

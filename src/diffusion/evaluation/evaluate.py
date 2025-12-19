@@ -1,19 +1,20 @@
 from typing import Dict, Tuple
-from torch import Tensor, device
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
+from sklearn.manifold import TSNE  # type: ignore
+from torch import Tensor, device
 
 from diffusion.architectures.classifiers.encoder import Encoder
 from diffusion.evaluation.density_coverage import density_coverage_knn
-from diffusion.evaluation.precision_recall import f1_score, precision_recall_knn
 from diffusion.evaluation.generator import Generator
 from diffusion.evaluation.kid import (
     kernel_inception_distance_poly,
     kernel_inception_distance_rbf,
 )
-import matplotlib.pyplot as plt
+from diffusion.evaluation.precision_recall import f1_score, precision_recall_knn
 from diffusion.sampleables.sampleable import Sampleable
-from sklearn.manifold import TSNE  # type: ignore
-import numpy as np
 
 
 def compute_samples(

@@ -1,9 +1,8 @@
 from typing import Tuple
-from torch import Tensor
-import torch
 
-from diffusion.architectures.backbones.backbone import Backbone
-from diffusion.evaluation.generator import Generator
+import torch
+from torch import Tensor
+
 from diffusion.approaches.matching.odes_sdes import GuidedNeuralODE, GuidedNeuralSDE
 from diffusion.approaches.matching.prob_paths import (
     CondProbPath,
@@ -13,6 +12,8 @@ from diffusion.approaches.matching.simulators import (
     EulerMaruyamaSimulator,
     EulerSimulator,
 )
+from diffusion.architectures.backbones.backbone import Backbone
+from diffusion.evaluation.generator import Generator
 
 
 class FlowGenerator(Generator):

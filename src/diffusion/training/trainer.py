@@ -1,14 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Any
-import torch
-from tqdm import tqdm
-from torch import Tensor
-from torch import nn
-from wandb import Run
-from torch.optim import Optimizer, AdamW
 
-from diffusion.utils.utils import AverageMeter, model_size_b, MiB
+import torch
+from torch import Tensor, nn
+from torch.optim import AdamW, Optimizer
+from tqdm import tqdm
+from wandb import Run
+
 from diffusion.utils.logging import logger
+from diffusion.utils.utils import AverageMeter, MiB, model_size_b
 
 
 class Trainer(ABC):

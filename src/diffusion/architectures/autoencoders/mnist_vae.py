@@ -1,10 +1,10 @@
 from typing import Tuple
+
 import torch
 import torch.nn as nn
-from torch import Tensor
 import torch.nn.functional as F
-
 from diffusion.architectures.latent.autoencoder import VAE
+from torch import Tensor
 
 
 def vae_loss_binary(recon_x: Tensor, x: Tensor, mu: Tensor, logvar: Tensor) -> Tensor:

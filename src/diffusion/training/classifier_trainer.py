@@ -1,10 +1,10 @@
-from matplotlib import pyplot as plt
 import numpy as np
 import torch
+from matplotlib import pyplot as plt
+from torch import Tensor, nn
+
 from diffusion.sampleables.sampleable import Sampleable
 from diffusion.training.trainer import Trainer
-from torch import nn
-from torch import Tensor
 
 
 class ClassifierTrainer(Trainer):

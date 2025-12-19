@@ -1,12 +1,12 @@
 import torch
-from torch import Tensor
 import torch.nn.functional as F
+from torch import Tensor
 
-from diffusion.architectures.backbones.backbone import Backbone
-from diffusion.training.trainer import Trainer
 from diffusion.approaches.ddpm.backward_process import BackwardProcess
 from diffusion.approaches.ddpm.forward_process import ForwardProcess
+from diffusion.architectures.backbones.backbone import Backbone
 from diffusion.sampleables.sampleable import Sampleable
+from diffusion.training.trainer import Trainer
 
 
 class DDPMTrainer(Trainer):

@@ -1,11 +1,10 @@
 import math
 from typing import List, Tuple
+
 import torch
-from torch import nn
-from torch import Tensor
+from torch import Tensor, nn
 
 from diffusion.architectures.backbones.backbone import Backbone
-
 
 # class FourierEncoder(nn.Module):
 #     """

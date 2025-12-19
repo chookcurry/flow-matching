@@ -1,22 +1,23 @@
 from typing import Any, Dict, List, Tuple
-import torch
-from tqdm import tqdm
-from torch import Tensor, vmap
-from wandb import Run
-from torch.utils.data import DataLoader
-from torch.optim import Optimizer, Adam
 
+import torch
 from diffusion.architectures.latent.autoencoder import AE, AEC, CAE, CAEC
-from diffusion.utils.utils import AverageMeter, MiB, model_size_b
 from diffusion.losses.ae_losses import ae_log_mag_phase, ae_mse, ae_spect_conv
 from diffusion.losses.supcon import loss_supcon
+from torch import Tensor, vmap
+from torch.optim import Adam, Optimizer
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from wandb import Run
+
+from diffusion.utils.logging import logger
 from diffusion.utils.stft import (
     compress_stft,
     decompress_stft,
     istft_transform,
     stft_transform,
 )
-from diffusion.utils.logging import logger
+from diffusion.utils.utils import AverageMeter, MiB, model_size_b
 
 
 def transform(x: Tensor) -> Tensor:

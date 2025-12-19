@@ -2,8 +2,9 @@ from typing import Callable
 
 import torch
 from torch import Tensor
-from diffusion.architectures.backbones.backbone import Backbone
+
 from diffusion.approaches.matching.prob_paths import CondProbPath
+from diffusion.architectures.backbones.backbone import Backbone
 from diffusion.training.trainer import Trainer
 
 

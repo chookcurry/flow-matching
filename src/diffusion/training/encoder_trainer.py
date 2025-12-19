@@ -1,10 +1,10 @@
 import torch
+from torch import Tensor, nn
+from torch.nn import functional as F
+
 from diffusion.architectures.classifiers.encoder import Encoder
 from diffusion.sampleables.sampleable import Sampleable
 from diffusion.training.trainer import Trainer
-from torch import nn
-from torch import Tensor
-from torch.nn import functional as F
 
 
 class SupConLoss(nn.Module):

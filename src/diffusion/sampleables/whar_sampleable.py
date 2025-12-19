@@ -3,10 +3,9 @@ from typing import Callable, Dict, Tuple
 
 import torch
 from torch import Tensor, nn
-
+from whar_datasets.adapters.sampler import Sampler
 from whar_datasets.core.config import WHARConfig
 from whar_datasets.core.splitting import split_indices
-from whar_datasets.adapters.sampler import Sampler
 
 from diffusion.sampleables.sampleable import Sampleable
 from diffusion.utils.stft import compress_stft, stft_transform

@@ -1,13 +1,12 @@
-import torch
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-from torch.func import vmap, jacrev
+import torch
 from torch import Tensor, nn
+from torch.func import jacrev, vmap
 
-from diffusion.sampleables.sampleable import IsotropicGaussian
-from diffusion.sampleables.sampleable import Sampleable
 from diffusion.architectures.backbones.backbone import Backbone
+from diffusion.sampleables.sampleable import IsotropicGaussian, Sampleable
 
 
 class CondProbPath(nn.Module, ABC):

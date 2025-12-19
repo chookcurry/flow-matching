@@ -1,8 +1,9 @@
-import torch
-from torchvision import datasets, transforms  # type: ignore
-from torch import Tensor, nn
-from typing import Dict, List, Tuple
 import ssl
+from typing import Dict, List, Tuple
+
+import torch
+from torch import Tensor, nn
+from torchvision import datasets, transforms  # type: ignore
 
 from diffusion.sampleables.sampleable import Sampleable
 
