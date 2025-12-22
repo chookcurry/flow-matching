@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import torch
 from torch import Tensor
 
@@ -31,13 +29,7 @@ class ScoreGenerator(Generator):
         self.sde = GuidedNeuralSDE(backbone, score, null_class)
         self.simulator = EulerMaruyamaSimulator(self.sde)
 
-    def sample_prior(
-        self,
-        num_samples: int,
-        shape: Tuple[int, ...],
-        device: torch.device,
-        y: Tensor | None = None,
-    ) -> Tensor:
+    def sample_prior(self, num_samples: int, y: Tensor | None = None) -> Tensor:
         x0, _ = self.path.p_simple.sample(num_samples, y)
         return x0
 

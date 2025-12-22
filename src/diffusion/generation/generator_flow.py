@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import torch
 from torch import Tensor
 
@@ -26,13 +24,7 @@ class FlowGenerator(Generator):
         self.ode = GuidedNeuralODE(backbone, null_class)
         self.simulator = EulerSimulator(self.ode)
 
-    def sample_prior(
-        self,
-        num_samples: int,
-        shape: Tuple[int, ...],
-        device: torch.device,
-        y: Tensor | None = None,
-    ) -> Tensor:
+    def sample_prior(self, num_samples: int, y: Tensor | None = None) -> Tensor:
         x0, _ = self.path.p_simple.sample(num_samples, y)
         return x0
 

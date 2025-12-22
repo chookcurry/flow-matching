@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import torch
 from torch import Tensor
 
@@ -10,11 +12,23 @@ from diffusion.ddpm.utils import extract
 # 2️⃣ Backward Process — defines p(x_{t-1} | x_t)
 # ------------------------------------------------------------
 class BackwardProcess:
-    def __init__(self, backbone: Backbone, forward: ForwardProcess, null_class: int):
+    def __init__(
+        self,
+        backbone: Backbone,
+        forward: ForwardProcess,
+        null_class: int,
+        shape: Tuple[int, ...],
+        device: torch.device,
+    ) -> None:
         self.backbone = backbone
         self.forward = forward
         self.timesteps = forward.timesteps
         self.null_class = null_class
+        self.shape = shape
+        self.device = device
+
+    def sample_noise(self, num_samples: int, device: torch.device) -> Tensor:
+        return torch.randn((num_samples, *self.shape), device=device)
 
     def p_sample(
         self, x_t: Tensor, t: Tensor, y: Tensor, guidance_scale: float | None = None
@@ -31,7 +45,7 @@ class BackwardProcess:
         # ------------------------------------------------
         # Classifier-free guidance: compute once efficiently
         # ------------------------------------------------
-        if guidance_scale is None:
+        if guidance_scale is None or guidance_scale == 1.0:
             eps_pred: Tensor = self.backbone(x_t, t, y)
         else:
             if y.dtype in (torch.int64, torch.int32):

@@ -55,7 +55,7 @@ class GuidedNeuralODE(ODE):
         unguided_vf: Tensor = self.vf(x_t, t, unguided_y)
         # (B, C, H, W)
 
-        if guidance_scale is not None:
+        if guidance_scale is not None and guidance_scale != 1.0:
             guided_vf: Tensor = self.vf(x_t, t, y)
             # (B, C, H, W)
 
@@ -102,7 +102,7 @@ class GuidedNeuralSDE(SDE):
         unguided_score: Tensor = self.score_fn(x_t, t, unguided_y)
         # (B, C, H, W)
 
-        if guidance_scale is not None:
+        if guidance_scale is not None and guidance_scale != 1.0:
             guided_vf: Tensor = self.vf(x_t, t, y)
             guided_score: Tensor = self.score_fn(x_t, t, y)
             # (B, C, H, W)

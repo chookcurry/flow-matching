@@ -25,17 +25,15 @@ class DDPMGenerator(Generator):
 
         self.forward_process = ForwardProcess(timesteps, device)
         self.backward_process = BackwardProcess(
-            backbone, self.forward_process, null_class
+            backbone, self.forward_process, null_class, shape, device
         )
 
     def sample_prior(
         self,
         num_samples: int,
-        shape: Tuple[int, ...],
-        device: torch.device,
         y: Tensor | None = None,
     ) -> Tensor:
-        return torch.randn((num_samples, *shape), device=device)
+        return torch.randn((num_samples, *self.shape), device=self.device)
 
     def generate(
         self, y: Tensor, x0: Tensor | None = None, guidance_scale: float | None = None
