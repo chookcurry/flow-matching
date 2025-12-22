@@ -7,6 +7,42 @@ from diffusion.sampleables.sampleable import Sampleable
 from diffusion.training.trainer import Trainer
 
 
+class EncoderTrainer(Trainer):
+    def __init__(
+        self,
+        encoder: Encoder,
+        train_data: Sampleable,
+        val_data: Sampleable,
+        num_classes: int,
+        temperature: float = 0.07,
+    ):
+        super().__init__(encoder)
+
+        self.train_data = train_data
+        self.val_data = val_data
+        self.num_classes = num_classes
+        self.criterion = SupConLoss(temperature)
+
+    def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
+        return self._get_loss(self.train_data, batch_size, device)
+
+    def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
+        return self._get_loss(self.val_data, batch_size, device)
+
+    def _get_loss(
+        self, data: Sampleable, batch_size: int, device: torch.device
+    ) -> Tensor:
+        x, y = data.sample(batch_size)
+        assert y is not None
+        x, y = x.to(device), y.to(device)
+
+        assert isinstance(self.model, Encoder)
+        embeddings = self.model.encode(x)
+        loss: Tensor = self.criterion(embeddings, y)
+
+        return loss
+
+
 class SupConLoss(nn.Module):
     """
     Supervised Contrastive Loss (Khosla et al., 2020)
@@ -42,53 +78,4 @@ class SupConLoss(nn.Module):
 
         # Final loss
         loss = -mean_log_prob_pos.mean()
-        return loss
-
-
-class EncoderTrainer(Trainer):
-    def __init__(
-        self,
-        encoder: Encoder,
-        train_data: Sampleable,
-        val_data: Sampleable,
-        num_classes: int,
-        lr: float = 1e-3,
-        batch_size: int = 64,
-        val_num_samples: int = 1000,
-        temperature: float = 0.07,
-    ):
-        super().__init__(encoder)
-
-        self.train_data = train_data
-        self.val_data = val_data
-        self.num_classes = num_classes
-        self.batch_size = batch_size
-        self.val_num_samples = val_num_samples
-
-        self.optimizer = self.get_optimizer(lr)
-        self.criterion = SupConLoss(temperature)
-
-    def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
-        x, y = self.train_data.sample(batch_size)
-        assert y is not None
-        x, y = x.to(device), y.to(device)
-
-        assert isinstance(self.model, Encoder)
-        embeddings = self.model.encode(x)
-        loss = self.criterion(embeddings, y)
-
-        return loss
-
-    @torch.no_grad()
-    def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
-        self.model.eval()
-
-        x, y = self.val_data.sample(batch_size)
-        assert y is not None
-        x, y = x.to(device), y.to(device)
-
-        assert isinstance(self.model, Encoder)
-        embeddings = self.model.encode(x)
-        loss = self.criterion(embeddings, y)
-
         return loss

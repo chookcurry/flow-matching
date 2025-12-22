@@ -5,7 +5,7 @@ import torch
 from torch import Tensor, nn
 from torch.func import jacrev, vmap
 
-from diffusion.architectures.backbones.backbone import Backbone
+from diffusion.backbones.backbone import Backbone
 from diffusion.sampleables.sampleable import IsotropicGaussian, Sampleable
 
 
@@ -191,63 +191,3 @@ class GaussianCondProbPath(CondProbPath):
         # (B, C, H, W)
 
         return score
-
-
-# class TestGaussianCondProbPath(CondProbPath):
-#     def __init__(
-#         self,
-#         num_classes: int,
-#         p_data: Sampleable,
-#         p_simple_shape: Tuple[int, ...],
-#         alpha: Alpha,
-#         beta: Beta,
-#     ):
-#         p_simple = ConditionalGaussian(num_classes, p_simple_shape)
-#         # ConditionalGaussianHypersphere(num_classes, p_simple_shape)
-#         super().__init__(p_simple, p_data)
-
-#         self.alpha = alpha
-#         self.beta = beta
-
-#     def sample_cond_path(self, z: Tensor, t: Tensor, y: Tensor | None = None) -> Tensor:
-#         # z: (B, C, H, W)
-#         # t: (B, 1, 1, 1)
-#         # y: (B)
-
-#         assert y is not None
-
-#         start, _ = self.p_simple.sample(z.shape[0], y)
-#         x = self.alpha(t) * z + self.beta(t) * start
-#         # (B, C, H, W)
-
-#         return x
-
-#     def cond_vf(self, x: Tensor, z: Tensor, t: Tensor) -> Tensor:
-#         # x: (B, C, H, W)
-#         # z: (B, C, H, W)
-#         # t: (B, 1, 1, 1)
-
-#         alpha_t = self.alpha(t)
-#         beta_t = self.beta(t)
-#         dt_alpha_t = self.alpha.dt(t)
-#         dt_beta_t = self.beta.dt(t)
-#         # (B, 1, 1, 1)
-
-#         vf = (dt_alpha_t - dt_beta_t / beta_t * alpha_t) * z + dt_beta_t / beta_t * x
-#         # (B, C, H, W)
-
-#         return vf
-
-#     def cond_score(self, x: Tensor, z: Tensor, t: Tensor) -> Tensor:
-#         # x: (B, C, H, W)
-#         # z: (B, C, H, W)
-#         # t: (B, 1, 1, 1)
-
-#         alpha_t = self.alpha(t)
-#         beta_t = self.beta(t)
-#         # (B, 1, 1, 1)
-
-#         score = (alpha_t * z - x) / beta_t**2
-#         # (B, C, H, W)
-
-#         return score

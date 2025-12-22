@@ -1,63 +1,18 @@
 from typing import Any, Dict, List, Tuple
 
 import torch
-from diffusion.architectures.latent.autoencoder import AE, AEC, CAE, CAEC
-from diffusion.losses.ae_losses import ae_log_mag_phase, ae_mse, ae_spect_conv
-from diffusion.losses.supcon import loss_supcon
+import torch.nn.functional as F
 from torch import Tensor, vmap
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from wandb import Run
 
+from diffusion.autoencoders.autoencoder import AE, AEC, CAE, CAEC
+from diffusion.training.ae_losses import ae_log_mag_phase, ae_mse, ae_spect_conv
 from diffusion.utils.logging import logger
-from diffusion.utils.stft import (
-    compress_stft,
-    decompress_stft,
-    istft_transform,
-    stft_transform,
-)
+from diffusion.utils.stft import detransform, transform
 from diffusion.utils.utils import AverageMeter, MiB, model_size_b
-
-
-def transform(x: Tensor) -> Tensor:
-    x = stft_transform(x)
-    x = compress_stft(x)
-
-    C, RI, F, T = x.shape
-    x = x.reshape(C * RI, F, T)
-
-    return x
-
-
-def detransform(x: Tensor) -> Tensor:
-    C, F, T = x.shape
-    x = x.reshape(C // 2, 2, F, T)
-
-    x = decompress_stft(x)
-    x = istft_transform(x)
-
-    return x
-
-
-def loss_fn(x: Tensor, y: Tensor, z: Tensor, recon: Tensor) -> Tensor:
-    return ae_mse(recon, x) + 0.01 * loss_supcon(z.view(z.shape[0], -1), y)
-
-
-def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, Tensor]:
-    x_list = []
-    y_list = []
-
-    for y, x in batch:
-        x = transform(x)
-
-        x_list.append(x)
-        y_list.append(y)
-
-    x_stack = torch.stack(x_list)
-    y_stack = torch.stack(y_list)
-
-    return x_stack, y_stack
 
 
 class CAETrainer:
@@ -222,3 +177,63 @@ class CAETrainer:
 
         logger.info([f"{key}: {value:.6f}" for key, value in metrics.items()])
         return metrics
+
+
+def loss_fn(x: Tensor, y: Tensor, z: Tensor, recon: Tensor) -> Tensor:
+    return ae_mse(recon, x) + 0.01 * loss_supcon(z.view(z.shape[0], -1), y)
+
+
+def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, Tensor]:
+    x_list = []
+    y_list = []
+
+    for y, x in batch:
+        x = transform(x)
+
+        x_list.append(x)
+        y_list.append(y)
+
+    x_stack = torch.stack(x_list)
+    y_stack = torch.stack(y_list)
+
+    return x_stack, y_stack
+
+
+def loss_supcon(x: Tensor, y: Tensor, temp: float = 0.07) -> Tensor:
+    # x: (batch_size, latent_dim)
+    # y: (batch_size,)
+
+    device = x.device
+    batch_size = x.shape[0]
+
+    # Normalize embeddings
+    x = F.normalize(x, dim=1)
+
+    # Cosine similarity matrix [N, N]
+    sim_matrix = torch.matmul(x, x.T) / temp
+
+    # Mask to remove self-comparisons
+    self_mask = torch.eye(batch_size, dtype=torch.bool, device=device)
+
+    # Positive mask: same label & not self
+    y = y.contiguous().view(-1, 1)
+    pos_mask = torch.eq(y, y.T) & ~self_mask
+
+    # --- log-probabilities (log-softmax) ---
+    # subtract row max for stability
+    logits_max, _ = torch.max(sim_matrix, dim=1, keepdim=True)
+    logits = sim_matrix - logits_max.detach()
+
+    # denominator: exp(logits) over all but self
+    exp_logits = torch.exp(logits) * (~self_mask).float()
+    log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True) + 1e-12)
+
+    # --- average log-likelihood over positives ---
+    pos_counts = pos_mask.sum(1)
+    mean_log_prob_pos = (pos_mask.float() * log_prob).sum(1) / (pos_counts + 1e-12)
+
+    # only anchors with positives should contribute
+    valid = pos_counts > 0
+    loss = -(mean_log_prob_pos[valid].mean())
+
+    return loss

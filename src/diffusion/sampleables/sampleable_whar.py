@@ -8,7 +8,7 @@ from whar_datasets.core.config import WHARConfig
 from whar_datasets.core.splitting import split_indices
 
 from diffusion.sampleables.sampleable import Sampleable
-from diffusion.utils.stft import compress_stft, stft_transform
+from diffusion.utils.stft import transform
 
 
 class TrainValTest(Enum):
@@ -17,21 +17,13 @@ class TrainValTest(Enum):
     TEST = "test"
 
 
-def stft_transform_combine(x: Tensor, n_fft: int = 62, hop_length: int = 4) -> Tensor:
-    x = stft_transform(x, n_fft=n_fft, hop_length=hop_length)
-    x = compress_stft(x)
-    C, RI, H, W = x.shape
-    x = x.view(C * RI, H, W)
-    return x
-
-
 class WHARSampleable(nn.Module, Sampleable):
     def __init__(
         self,
         cfg: WHARConfig,
         scv_group_index: int = 0,
         fold: TrainValTest = TrainValTest.TRAIN,
-        transform: Callable[[Tensor], Tensor] = stft_transform_combine,
+        transform: Callable[[Tensor], Tensor] | None = transform,
     ):
         super().__init__()
 
@@ -39,7 +31,6 @@ class WHARSampleable(nn.Module, Sampleable):
 
         self.cfg = cfg
         self.cfg.transform = None
-
         self.transform = transform
 
         self.sampler = Sampler(self.cfg)
@@ -68,7 +59,11 @@ class WHARSampleable(nn.Module, Sampleable):
 
         sample = self.sampler.sample(1, self.indices)[1][0]
         self.signal_shape = tuple(sample.shape)
-        self.shape = tuple(self.transform(sample).shape)
+        self.shape = (
+            tuple(self.transform(sample).shape)
+            if self.transform is not None
+            else self.signal_shape
+        )
 
     def sample(
         self, num_samples: int, y: Tensor | None = None, seed: int | None = None

@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from diffusion.approaches.ddpm.utils import extract
+from diffusion.ddpm.utils import extract
 
 
 def cosine_beta_schedule(timesteps: int, s: float = 0.008) -> Tensor:

@@ -2,9 +2,9 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from diffusion.approaches.ddpm.backward_process import BackwardProcess
-from diffusion.approaches.ddpm.forward_process import ForwardProcess
-from diffusion.architectures.backbones.backbone import Backbone
+from diffusion.backbones.backbone import Backbone
+from diffusion.ddpm.backward import BackwardProcess
+from diffusion.ddpm.forward import ForwardProcess
 from diffusion.sampleables.sampleable import Sampleable
 from diffusion.training.trainer import Trainer
 
@@ -12,11 +12,11 @@ from diffusion.training.trainer import Trainer
 class DDPMTrainer(Trainer):
     def __init__(
         self,
-        dataset: Sampleable,
-        val_dataset: Sampleable,
+        backbone: Backbone,
         forward_process: ForwardProcess,
         backward_process: BackwardProcess,
-        backbone: Backbone,
+        dataset: Sampleable,
+        val_dataset: Sampleable,
         num_classes: int,
         y_drop_prob: float = 0.2,
     ):
@@ -24,14 +24,21 @@ class DDPMTrainer(Trainer):
 
         assert 0 < y_drop_prob < 1
 
-        self.dataset = dataset
-        self.val_dataset = val_dataset
+        self.backbone = backbone
         self.forward_process = forward_process
         self.backward_process = backward_process
-        self.backbone = backbone
+        self.dataset = dataset
+        self.val_dataset = val_dataset
         self.num_classes = num_classes
         self.null_class = num_classes
         self.y_drop_prob = y_drop_prob
+
+    def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
+        return self._get_loss(self.dataset, batch_size, device)
+
+    @torch.no_grad()
+    def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
+        return self._get_loss(self.val_dataset, batch_size, device)
 
     def _get_loss(
         self, dataset: Sampleable, batch_size: int, device: torch.device
@@ -62,10 +69,3 @@ class DDPMTrainer(Trainer):
         loss = F.mse_loss(eps_pred, noise)
 
         return loss
-
-    def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
-        return self._get_loss(self.dataset, batch_size, device)
-
-    @torch.no_grad()
-    def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
-        return self._get_loss(self.val_dataset, batch_size, device)

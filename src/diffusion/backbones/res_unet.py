@@ -4,35 +4,7 @@ from typing import List, Tuple
 import torch
 from torch import Tensor, nn
 
-from diffusion.architectures.backbones.backbone import Backbone
-
-# class FourierEncoder(nn.Module):
-#     """
-#     Based on https://github.com/lucidrains/denoising-diffusion-pytorch
-#     /blob/main/denoising_diffusion_pytorch/karras_unet.py#L183
-#     """
-
-#     def __init__(self, dim: int):
-#         super().__init__()
-
-#         assert dim % 2 == 0
-#         self.weights = nn.Parameter(torch.randn(1, dim // 2))
-
-#     def forward(self, t: Tensor) -> Tensor:
-#         # t: (B,) or (B,1) or (B,1,1,1)
-
-#         t = t.view(-1, 1)
-#         # (B, 1)
-
-#         freqs = t * self.weights * 2 * math.pi  #
-#         sin_embed = torch.sin(freqs)
-#         cos_embed = torch.cos(freqs)
-#         # (B, dim // 2)
-
-#         t_emb = torch.cat([sin_embed, cos_embed], dim=-1) * math.sqrt(2)
-#         # (B, dim)
-
-#         return t_emb
+from diffusion.backbones.backbone import Backbone
 
 
 class SinusoidalTimeEmbedding(nn.Module):
@@ -302,6 +274,34 @@ class Conditioner(nn.Module):
         return cond
 
 
+class BiTimeConditioner(nn.Module):
+    def __init__(self, num_classes: int, t_dim: int, y_dim: int, cond_dim: int) -> None:
+        super().__init__()
+
+        self.t_embedder = SinusoidalTimeEmbedding(t_dim)
+        self.y_embedder = nn.Embedding(num_classes + 1, y_dim)
+
+        self.mlp = nn.Sequential(
+            nn.Linear(2 * t_dim + y_dim, cond_dim),
+            nn.SiLU(),
+            nn.Linear(cond_dim, cond_dim),
+        )
+
+    def forward(self, s: Tensor, t: Tensor, y: Tensor) -> Tensor:
+        # s: (B)
+        # t: (B)
+        # y: (B)
+
+        s_embed = self.t_embedder(s)
+        t_embed = self.t_embedder(t)
+        y_embed = self.y_embedder(y)
+        cond = torch.cat([s_embed, t_embed, y_embed], dim=1)
+        cond = self.mlp(cond)
+        # (B, cond_dim)
+
+        return cond
+
+
 class ResUnet(Backbone):
     def __init__(
         self,
@@ -314,8 +314,9 @@ class ResUnet(Backbone):
     ) -> None:
         super().__init__()
 
-        self.start = nn.Conv2d(in_channels, channels[0], kernel_size=3, padding=1)
         self.conditioner = Conditioner(num_classes, t_dim, y_dim, cond_dim)
+
+        self.stem = nn.Conv2d(in_channels, channels[0], kernel_size=3, padding=1)
 
         self.encoders = nn.ModuleList(
             [
@@ -333,9 +334,11 @@ class ResUnet(Backbone):
             ]
         )
 
-        self.norm = nn.GroupNorm(8, channels[0], eps=1e-6)
-        self.act = nn.SiLU(inplace=True)
-        self.final = nn.Conv2d(channels[0], in_channels, kernel_size=3, padding=1)
+        self.head = nn.Sequential(
+            nn.GroupNorm(8, channels[0], eps=1e-6),
+            nn.SiLU(inplace=True),
+            nn.Conv2d(channels[0], in_channels, kernel_size=3, padding=1),
+        )
 
     def forward(self, x: Tensor, t: Tensor, y: Tensor) -> Tensor:
         # x: (B, in_channels, H, W)
@@ -345,7 +348,7 @@ class ResUnet(Backbone):
         cond = self.conditioner(t, y)
         # (B, cond_dim)
 
-        x = self.start(x)
+        x = self.stem(x)
         skips: List[Tensor] = []
 
         for encoder in self.encoders:
@@ -357,9 +360,72 @@ class ResUnet(Backbone):
         for decoder in self.decoders:
             x = decoder(x, skips.pop(), cond)
 
-        x = self.norm(x)
-        x = self.act(x)
-        x = self.final(x)
+        x = self.head(x)
+        # (B, in_channels, H, W)
+
+        return x
+
+
+class BiTimeResUnet(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        channels: List[int],
+        num_classes: int,
+        t_dim: int,
+        y_dim: int,
+        cond_dim: int,
+    ) -> None:
+        super().__init__()
+
+        self.conditioner = BiTimeConditioner(num_classes, t_dim, y_dim, cond_dim)
+
+        self.stem = nn.Conv2d(in_channels, channels[0], kernel_size=3, padding=1)
+
+        self.encoders = nn.ModuleList(
+            [
+                EncoderBlock(channels[i], channels[i + 1], cond_dim)
+                for i in range(len(channels) - 1)
+            ]
+        )
+
+        self.bridge = BridgeBlock(channels[-1], cond_dim)
+
+        self.decoders = nn.ModuleList(
+            [
+                DecoderBlock(channels[i], channels[i - 1], cond_dim)
+                for i in range(len(channels) - 1, 0, -1)
+            ]
+        )
+
+        self.head = nn.Sequential(
+            nn.GroupNorm(8, channels[0], eps=1e-6),
+            nn.SiLU(inplace=True),
+            nn.Conv2d(channels[0], in_channels, kernel_size=3, padding=1),
+        )
+
+    def forward(self, x: Tensor, s: Tensor, t: Tensor, y: Tensor) -> Tensor:
+        # x: (B, in_channels, H, W)
+        # s: (B)
+        # t: (B)
+        # y: (B)
+
+        cond = self.conditioner(s, t, y)
+        # (B, cond_dim)
+
+        x = self.stem(x)
+        skips: List[Tensor] = []
+
+        for encoder in self.encoders:
+            x, skip = encoder(x, cond)
+            skips.append(skip)
+
+        x = self.bridge(x, cond)
+
+        for decoder in self.decoders:
+            x = decoder(x, skips.pop(), cond)
+
+        x = self.head(x)
         # (B, in_channels, H, W)
 
         return x

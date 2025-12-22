@@ -1,9 +1,9 @@
 import torch
 from torch import Tensor
 
-from diffusion.approaches.ddpm.forward_process import ForwardProcess
-from diffusion.approaches.ddpm.utils import extract
-from diffusion.architectures.backbones.backbone import Backbone
+from diffusion.backbones.backbone import Backbone
+from diffusion.ddpm.forward import ForwardProcess
+from diffusion.ddpm.utils import extract
 
 
 # ------------------------------------------------------------

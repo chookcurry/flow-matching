@@ -4,10 +4,10 @@ import torch
 from torch import Tensor
 from tqdm import tqdm
 
-from diffusion.approaches.ddpm.backward_process import BackwardProcess
-from diffusion.approaches.ddpm.forward_process import ForwardProcess
-from diffusion.architectures.backbones.backbone import Backbone
-from diffusion.evaluation.generator import Generator
+from diffusion.backbones.backbone import Backbone
+from diffusion.ddpm.backward import BackwardProcess
+from diffusion.ddpm.forward import ForwardProcess
+from diffusion.generation.generator import Generator
 
 
 class DDPMGenerator(Generator):

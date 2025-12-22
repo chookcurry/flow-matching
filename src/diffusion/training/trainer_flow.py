@@ -1,30 +1,19 @@
-from typing import Callable
-
 import torch
 from torch import Tensor
 
-from diffusion.approaches.matching.prob_paths import CondProbPath
-from diffusion.architectures.backbones.backbone import Backbone
+from diffusion.backbones.backbone import Backbone
+from diffusion.flows.prob_paths import CondProbPath
 from diffusion.training.trainer import Trainer
-
-
-def sample_time_uniform(batch_size: int) -> Tensor:
-    return torch.rand(batch_size, 1, 1, 1)
-
-
-def sample_time_logit_normal(batch_size: int) -> Tensor:
-    return torch.sigmoid(torch.normal(0.0, 0.6, size=(batch_size, 1, 1, 1)))
 
 
 class FlowTrainer(Trainer):
     def __init__(
         self,
+        backbone: Backbone,
         path: CondProbPath,
         val_path: CondProbPath,
-        backbone: Backbone,
         null_class: int,
         y_drop_prob: float = 0.2,
-        sample_time: Callable[[int], Tensor] = sample_time_uniform,
     ):
         super().__init__(backbone)
 
@@ -35,7 +24,13 @@ class FlowTrainer(Trainer):
         self.backbone = backbone
         self.null_class = null_class
         self.y_drop_prob = y_drop_prob
-        self.sample_time = sample_time
+        self.sample_time = sample_time_uniform
+
+    def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
+        return self._get_loss(self.path, batch_size, device)
+
+    def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
+        return self._get_loss(self.val_path, batch_size, device)
 
     def _get_loss(
         self, path: CondProbPath, batch_size: int, device: torch.device
@@ -60,9 +55,10 @@ class FlowTrainer(Trainer):
 
         return loss
 
-    def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
-        return self._get_loss(self.path, batch_size, device)
 
-    @torch.no_grad()
-    def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
-        return self._get_loss(self.val_path, batch_size, device)
+def sample_time_uniform(batch_size: int) -> Tensor:
+    return torch.rand(batch_size, 1, 1, 1)
+
+
+def sample_time_logit_normal(batch_size: int) -> Tensor:
+    return torch.sigmoid(torch.normal(0.0, 0.6, size=(batch_size, 1, 1, 1)))

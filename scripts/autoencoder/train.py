@@ -1,24 +1,26 @@
 import json
-from math import log2
+import logging
 import os
+import shutil
+from math import log2
+
 import hydra
 import torch
-import logging
+import wandb
+from diffusion.architectures.latent.autoencoder import AE, AEC, CAE, CAEC
+from diffusion.whar.models.autoencoder_dynamic import (
+    SpectrogramAE,
+    SpectrogramAEC,
+    SpectrogramCAE,
+    SpectrogramCAEC,
+)
+from dotenv import load_dotenv
+from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 from whar_datasets.adapters.pytorch import PytorchAdapter
 from whar_datasets.support.getter import WHARDatasetID, get_whar_cfg
-from diffusion.architectures.latent.autoencoder import AE, AEC, CAE, CAEC
-from diffusion.latent.cae_trainer import CAETrainer
-from diffusion.whar.models.autoencoder_dynamic import (
-    SpectrogramAE,
-    SpectrogramCAE,
-    SpectrogramAEC,
-    SpectrogramCAEC,
-)
-from hydra.core.hydra_config import HydraConfig
-import shutil
-import wandb
-from dotenv import load_dotenv
+
+from diffusion.training.trainer_cae import CAETrainer
 
 # Set up logging
 log = logging.getLogger(__name__)

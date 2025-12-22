@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 from tqdm import tqdm
 
-from diffusion.approaches.matching.odes_sdes import ODE, SDE
+from diffusion.flows.odes_sdes import ODE, SDE
 
 
 class Simulator(ABC):
@@ -79,45 +79,6 @@ class EulerSimulator(Simulator):
         return xt + self.ode.drift_coeff(xt, t, y, guidance_scale) * dt
 
 
-class HeunSimulator(Simulator):
-    def __init__(self, ode: ODE):
-        self.ode = ode
-
-    def step(
-        self,
-        xt: Tensor,
-        t: Tensor,
-        dt: Tensor,
-        y: Tensor,
-        guidance_scale: float | None = None,
-    ) -> Tensor:
-        k1 = self.ode.drift_coeff(xt, t, y, guidance_scale)
-        xt_euler = xt + dt * k1
-        k2 = self.ode.drift_coeff(xt_euler, t + dt, y, guidance_scale)
-
-        return xt + 0.5 * dt * (k1 + k2)
-
-
-class RK4Simulator(Simulator):
-    def __init__(self, ode: ODE):
-        self.ode = ode
-
-    def step(
-        self,
-        xt: Tensor,
-        t: Tensor,
-        dt: Tensor,
-        y: Tensor,
-        guidance_scale: float | None = None,
-    ) -> Tensor:
-        k1 = self.ode.drift_coeff(xt, t, y, guidance_scale)
-        k2 = self.ode.drift_coeff(xt + 0.5 * dt * k1, t + 0.5 * dt, y, guidance_scale)
-        k3 = self.ode.drift_coeff(xt + 0.5 * dt * k2, t + 0.5 * dt, y, guidance_scale)
-        k4 = self.ode.drift_coeff(xt + dt * k3, t + dt, y, guidance_scale)
-
-        return xt + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
-
-
 class EulerMaruyamaSimulator(Simulator):
     def __init__(self, sde: SDE):
         self.sde = sde
@@ -147,3 +108,42 @@ def record_every(num_timesteps: int, record_every: int) -> Tensor:
             Tensor([num_timesteps - 1]),
         ]
     )
+
+
+# class HeunSimulator(Simulator):
+#     def __init__(self, ode: ODE):
+#         self.ode = ode
+
+#     def step(
+#         self,
+#         xt: Tensor,
+#         t: Tensor,
+#         dt: Tensor,
+#         y: Tensor,
+#         guidance_scale: float | None = None,
+#     ) -> Tensor:
+#         k1 = self.ode.drift_coeff(xt, t, y, guidance_scale)
+#         xt_euler = xt + dt * k1
+#         k2 = self.ode.drift_coeff(xt_euler, t + dt, y, guidance_scale)
+
+#         return xt + 0.5 * dt * (k1 + k2)
+
+
+# class RK4Simulator(Simulator):
+#     def __init__(self, ode: ODE):
+#         self.ode = ode
+
+#     def step(
+#         self,
+#         xt: Tensor,
+#         t: Tensor,
+#         dt: Tensor,
+#         y: Tensor,
+#         guidance_scale: float | None = None,
+#     ) -> Tensor:
+#         k1 = self.ode.drift_coeff(xt, t, y, guidance_scale)
+#         k2 = self.ode.drift_coeff(xt + 0.5 * dt * k1, t + 0.5 * dt, y, guidance_scale)
+#         k3 = self.ode.drift_coeff(xt + 0.5 * dt * k2, t + 0.5 * dt, y, guidance_scale)
+#         k4 = self.ode.drift_coeff(xt + dt * k3, t + dt, y, guidance_scale)
+
+#         return xt + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)

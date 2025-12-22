@@ -4,7 +4,7 @@ from typing import Callable
 import torch
 from torch import Tensor
 
-from diffusion.architectures.backbones.backbone import Backbone
+from diffusion.backbones.backbone import Backbone
 
 
 class ODE(ABC):

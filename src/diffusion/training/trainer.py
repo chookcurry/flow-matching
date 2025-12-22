@@ -3,7 +3,7 @@ from typing import Any
 
 import torch
 from torch import Tensor, nn
-from torch.optim import AdamW, Optimizer
+from torch.optim import AdamW
 from tqdm import tqdm
 from wandb import Run
 
@@ -16,10 +16,6 @@ class Trainer(ABC):
         super().__init__()
 
         self.model = model
-        self.optimizer = self.get_optimizer()
-
-    def get_optimizer(self, lr: float = 1e-3) -> Optimizer:
-        return AdamW(self.model.parameters(), lr=lr)
 
     def train(
         self,
@@ -31,43 +27,38 @@ class Trainer(ABC):
         validate: bool = True,
         val_batch_size: int = 500,
         patience: int | None = 5,
-        decreasing: bool = True,
         run: Run | None = None,
     ) -> dict[str, Any]:
         size_b = model_size_b(self.model)
         logger.info(f"Training model with size: {size_b / MiB:.3f} MiB")
 
         self.model.to(device)
-        optimizer = (
-            self.optimizer
-            if self.optimizer.param_groups[0]["lr"] == lr
-            else self.get_optimizer(lr)
-        )
+        optimizer = AdamW(self.model.parameters(), lr=lr)
 
         # Early stopping setup
-        best_val_loss = float("inf") if decreasing else float("-inf")
-        current_val_loss = float("inf") if decreasing else float("-inf")
+        best_val_loss = float("inf")
+        current_val_loss = float("inf")
         best_model_state = self.model.state_dict()
         patience_counter = 0
 
-        train_losses = AverageMeter()
+        meter = AverageMeter()
 
         for epoch in range(num_epochs):
             self.model.train()
-            train_losses.reset()
+            meter.reset()
 
             # setup progress bar
             pbar = tqdm(range(steps_per_epoch))
             pbar.set_description(f"Epoch {epoch}/{num_epochs}")
 
-            # run tra
+            # loop
             for _ in pbar:
                 optimizer.zero_grad()
                 train_loss = self.get_train_loss(batch_size, device)
 
                 run.log({"train/loss": train_loss.item()}) if run else None
-                train_losses.update(train_loss.item())
-                pbar.set_postfix(train_loss=f"{train_losses.avg:.6f}")
+                meter.update(train_loss.item())
+                pbar.set_postfix(train_loss=f"{meter.avg:.6f}")
 
                 train_loss.backward()
                 optimizer.step()
@@ -82,12 +73,8 @@ class Trainer(ABC):
 
             # update when val loss improves
             current_val_loss = float(val_loss.item())
-            condition = (
-                current_val_loss < best_val_loss
-                if decreasing
-                else current_val_loss > best_val_loss
-            )
-            if condition:
+
+            if current_val_loss < best_val_loss:
                 best_val_loss = current_val_loss
                 best_model_state = self.model.state_dict()
                 patience_counter = 0

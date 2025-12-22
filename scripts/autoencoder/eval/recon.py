@@ -1,22 +1,23 @@
-import os
 import json
 import logging
-import torch
+import os
 from math import log2
-from matplotlib import pyplot as plt
-from dotenv import load_dotenv
-from omegaconf import OmegaConf, DictConfig
 
-from whar_datasets.adapters.pytorch import PytorchAdapter
-from whar_datasets.support.getter import WHARDatasetID, get_whar_cfg
+import torch
 from diffusion.architectures.latent.autoencoder import AE, AEC, CAE, CAEC
-from diffusion.latent.cae_trainer import collate_fn, detransform
 from diffusion.whar.models.autoencoder_dynamic import (
     SpectrogramAE,
-    SpectrogramCAE,
     SpectrogramAEC,
+    SpectrogramCAE,
     SpectrogramCAEC,
 )
+from dotenv import load_dotenv
+from matplotlib import pyplot as plt
+from omegaconf import DictConfig, OmegaConf
+from whar_datasets.adapters.pytorch import PytorchAdapter
+from whar_datasets.support.getter import WHARDatasetID, get_whar_cfg
+
+from diffusion.training.trainer_cae import collate_fn, detransform
 from diffusion.utils.stft import decompress_stft, plot_spectrogram_grid
 
 # -------------------

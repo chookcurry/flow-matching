@@ -1,7 +1,7 @@
 import torch.nn as nn
 from torch import Tensor
 
-from diffusion.architectures.classifiers.encoder import Encoder
+from diffusion.classifiers.encoder import Encoder
 
 
 class MNISTClassifier(Encoder):
@@ -22,7 +22,10 @@ class MNISTClassifier(Encoder):
         self.head = nn.Linear(128, num_classes)
 
     def encode(self, x: Tensor) -> Tensor:
-        return self.encoder(x)
+        x = self.encoder(x)
+        return x
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.head(self.encoder(x))
+        x = self.encoder(x)
+        x = self.head(x)
+        return x

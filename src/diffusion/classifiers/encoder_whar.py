@@ -1,7 +1,7 @@
 import torch.nn as nn
 from torch import Tensor
 
-from diffusion.architectures.classifiers.mnist_classifier import Encoder
+from diffusion.classifiers.encoder import Encoder
 
 
 class WISDMClassifier(Encoder):
@@ -26,9 +26,11 @@ class WISDMClassifier(Encoder):
 
     # Feature extractor
     def encode(self, x: Tensor) -> Tensor:
-        return self.feature_extractor(self.encoder(x))
+        x = self.feature_extractor(self.encoder(x))
+        return x
 
     # Full forward pass
     def forward(self, x: Tensor) -> Tensor:
         features = self.encode(x)
-        return self.head(features)
+        x = self.head(features)
+        return x
