@@ -4,7 +4,8 @@
 
 .env
 
-datasets
+**/datasets
+**/data
 
 multirun
 .aim

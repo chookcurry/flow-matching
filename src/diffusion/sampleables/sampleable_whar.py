@@ -24,6 +24,7 @@ class WHARSampleable(nn.Module, Sampleable):
         scv_group_index: int = 0,
         fold: TrainValTest = TrainValTest.TRAIN,
         transform: Callable[[Tensor], Tensor] | None = transform,
+        plot_path: str | None = None,
     ):
         super().__init__()
 
@@ -54,7 +55,7 @@ class WHARSampleable(nn.Module, Sampleable):
             case TrainValTest.TEST:
                 self.indices = self.test_indices
 
-        self.sampler.plot_indices_statistics(self.indices)
+        self.sampler.plot_indices_statistics(self.indices, plot_path)
         self.num_classes = len(self.sampler.get_class_weights(self.indices).keys())
 
         sample = self.sampler.sample(1, self.indices)[1][0]

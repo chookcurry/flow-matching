@@ -37,8 +37,11 @@ class MNISTSampleable(nn.Module, Sampleable):
         self.dummy = nn.Buffer(torch.zeros(1))
 
     def sample(
-        self, num_samples: int, y: Tensor | None = None
+        self, num_samples: int, y: Tensor | None = None, seed: int | None = None
     ) -> Tuple[Tensor, Tensor]:
+        if seed is not None:
+            torch.manual_seed(seed)
+
         device = self.dummy.device
 
         if y is None:

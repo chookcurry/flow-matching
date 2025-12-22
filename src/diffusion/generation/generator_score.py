@@ -21,6 +21,7 @@ class ScoreGenerator(Generator):
         device: torch.device,
     ) -> None:
         self.path = path
+        self.backbone = backbone
         self.num_timesteps = num_timesteps
         self.device = device
 
@@ -36,6 +37,8 @@ class ScoreGenerator(Generator):
     def generate(
         self, y: Tensor, x0: Tensor | None = None, guidance_scale: float | None = None
     ) -> Tensor:
+        self.backbone.eval()
+
         num_samples = y.shape[0]
 
         if x0 is None:

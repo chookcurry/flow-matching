@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, List
 
+import matplotlib.pyplot as plt
 import torch
 from torch import Tensor, nn
 from torch.optim import AdamW
@@ -28,6 +29,7 @@ class Trainer(ABC):
         val_batch_size: int = 500,
         patience: int | None = 5,
         run: Run | None = None,
+        plot_path: str | None = None,
     ) -> dict[str, Any]:
         size_b = model_size_b(self.model)
         logger.info(f"Training model with size: {size_b / MiB:.3f} MiB")
@@ -42,6 +44,8 @@ class Trainer(ABC):
         patience_counter = 0
 
         meter = AverageMeter()
+        train_losses: List[float] = []
+        val_losses: List[float] = []
 
         for epoch in range(num_epochs):
             self.model.train()
@@ -59,6 +63,7 @@ class Trainer(ABC):
                 run.log({"train/loss": train_loss.item()}) if run else None
                 meter.update(train_loss.item())
                 pbar.set_postfix(train_loss=f"{meter.avg:.6f}")
+                train_losses.append(train_loss.item())
 
                 train_loss.backward()
                 optimizer.step()
@@ -83,6 +88,24 @@ class Trainer(ABC):
 
             logger.info(f"val loss: {val_loss}, best val loss: {best_val_loss}")
             run.log({"val/loss": val_loss.item()}) if run else None
+            val_losses.append(val_loss.item())
+
+            if plot_path is not None:
+                # inflate val losses to match train losses length for plotting
+                inflated_val_losses = []
+                for v in val_losses:
+                    inflated_val_losses.extend([v] * steps_per_epoch)
+
+                plt.figure(figsize=(10, 5))
+                plt.plot(train_losses, label="Train Loss")
+                plt.plot(inflated_val_losses, label="Validation Loss")
+                plt.xlabel("Iterations")
+                plt.ylabel("Loss")
+                plt.title("Training and Validation Loss Over Time")
+                plt.legend()
+                plt.yscale("log")
+                plt.savefig(plot_path)
+                plt.close()
 
             # early stopping
             if patience is not None and patience_counter >= patience:

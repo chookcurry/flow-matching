@@ -5,7 +5,7 @@ import torch
 from torch import Tensor
 
 from diffusion.autoencoders.autoencoder import AE, AEC, CAE, CAEC
-from diffusion.evaluation.kid import kernel_inception_distance_poly_biased
+from diffusion.evaluation.kid import kid_poly_biased
 from diffusion.evaluation.precision_recall import f1_score, precision_recall_knn
 from diffusion.flows.odes_sdes import Backbone, GuidedNeuralODE
 from diffusion.flows.prob_paths import CondProbPath
@@ -110,7 +110,7 @@ class LatentFlowTrainer(Trainer):
             batch_x0 = batch_x0.to(device)
             batch_x1 = simulator.simulate(batch_x0, ts, batch_y)
 
-            kid = kernel_inception_distance_poly_biased(batch_x1, batch_z)
+            kid = kid_poly_biased(batch_x1, batch_z)
             precision, recall = precision_recall_knn(batch_x1, batch_z)
             f1 = f1_score(precision, recall)
 

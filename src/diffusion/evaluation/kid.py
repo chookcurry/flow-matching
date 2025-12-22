@@ -2,7 +2,7 @@ import torch
 from torch import Tensor
 
 
-def kernel_inception_distance_poly(x: Tensor, y: Tensor, degree: int = 3) -> Tensor:
+def kid_poly(x: Tensor, y: Tensor, degree: int = 3) -> Tensor:
     # polynomial kernel: K(x, y) = (xᵀy / d + 1)^degree
 
     B = x.size(0)
@@ -31,9 +31,7 @@ def kernel_inception_distance_poly(x: Tensor, y: Tensor, degree: int = 3) -> Ten
     return sum_K_xx + sum_K_yy - 2 * sum_K_xy
 
 
-def kernel_inception_distance_poly_biased(
-    x: Tensor, y: Tensor, degree: int = 3
-) -> Tensor:
+def kid_poly_biased(x: Tensor, y: Tensor, degree: int = 3) -> Tensor:
     # polynomial kernel: K(x, y) = (xᵀy / d + 1)^degree
 
     B = x.size(0)
@@ -62,7 +60,7 @@ def kernel_inception_distance_poly_biased(
     return sum_K_xx + sum_K_yy - 2 * sum_K_xy
 
 
-def kernel_inception_distance_rbf(x: Tensor, y: Tensor, alpha: float = 0.001) -> Tensor:
+def kid_rbf(x: Tensor, y: Tensor, alpha: float = 0.001) -> Tensor:
     # RBF kernel: K(x, y) = exp(-alpha * ||x - y||^2)
 
     B = x.size(0)
@@ -95,9 +93,7 @@ def kernel_inception_distance_rbf(x: Tensor, y: Tensor, alpha: float = 0.001) ->
     return sum_K_xx + sum_K_yy - 2 * sum_K_xy
 
 
-def kernel_inception_distance_rbf_biased(
-    x: Tensor, y: Tensor, alpha: float = 0.001
-) -> Tensor:
+def kid_rbf_biased(x: Tensor, y: Tensor, alpha: float = 0.001) -> Tensor:
     # RBF kernel: K(x, y) = exp(-alpha * ||x - y||^2)
 
     B = x.size(0)

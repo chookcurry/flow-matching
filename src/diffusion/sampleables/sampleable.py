@@ -8,7 +8,7 @@ from torch import Tensor, nn
 class Sampleable(ABC):
     @abstractmethod
     def sample(
-        self, num_samples: int, y: Tensor | None = None
+        self, num_samples: int, y: Tensor | None = None, seed: int | None = None
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # y: (B)
         pass
@@ -25,10 +25,14 @@ class IsotropicGaussian(nn.Module, Sampleable):
         self.dummy = nn.Buffer(torch.zeros(1))
 
     def sample(
-        self, num_samples: int, y: Tensor | None = None
+        self, num_samples: int, y: Tensor | None = None, seed: int | None = None
     ) -> Tuple[torch.Tensor, None]:
+        if seed is not None:
+            torch.manual_seed(seed)
+
         eps = torch.randn(num_samples, *self.shape, device=self.dummy.device)
         samples = self.mean + self.std * eps
+
         return samples, None
 
 

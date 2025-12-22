@@ -2,7 +2,7 @@ import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
 
-from diffusion.architectures.classifiers.encoder import Encoder
+from diffusion.classifiers.encoder import Encoder
 from diffusion.sampleables.sampleable import Sampleable
 from diffusion.training.trainer import Trainer
 

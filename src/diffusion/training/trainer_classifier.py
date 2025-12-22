@@ -14,12 +14,14 @@ class ClassifierTrainer(Trainer):
         train_data: Sampleable,
         val_data: Sampleable,
         num_classes: int,
+        plot_path: str | None = None,
     ):
         super().__init__(classifier)
 
         self.train_data = train_data
         self.val_data = val_data
         self.num_classes = num_classes
+        self.plot_path = plot_path
         self.criterion = nn.CrossEntropyLoss()
 
     def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
@@ -55,11 +57,13 @@ class ClassifierTrainer(Trainer):
 
         return loss
 
-    @staticmethod
     def plot_confusion_matrix(
-        conf_matrix: np.ndarray, accuracy: float, class_names: list[str] | None = None
+        self,
+        conf_matrix: np.ndarray,
+        accuracy: float,
+        class_names: list[str] | None = None,
     ) -> None:
-        fig, ax = plt.subplots(figsize=(3, 3))  # square figure
+        fig, ax = plt.subplots(figsize=(5, 5))  # square figure
         im = ax.imshow(conf_matrix, cmap="Blues")
 
         if class_names is None:
@@ -86,5 +90,11 @@ class ClassifierTrainer(Trainer):
                 )
 
         fig.colorbar(im)
-        plt.title(f"Confusion Matrix, Accuracy {accuracy}")
-        plt.show()
+        plt.title(f"Confusion Matrix, Accuracy {accuracy:.2%}")
+
+        if self.plot_path is not None:
+            plt.savefig(self.plot_path)
+        else:
+            plt.show()
+
+        plt.close(fig)

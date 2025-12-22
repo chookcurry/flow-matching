@@ -38,6 +38,8 @@ class DDPMGenerator(Generator):
     def generate(
         self, y: Tensor, x0: Tensor | None = None, guidance_scale: float | None = None
     ) -> Tensor:
+        self.backbone.eval()
+
         x = (
             torch.randn((y.shape[0], *self.shape), device=y.device)
             if x0 is None

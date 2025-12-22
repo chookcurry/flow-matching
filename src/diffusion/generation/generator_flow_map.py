@@ -32,6 +32,8 @@ class FlowMapGenerator(Generator):
         x0: Tensor | None = None,
         guidance_scale: float | None = None,  # w > 1.0 enhances class attributes
     ) -> Tensor:
+        self.backbone.eval()
+
         num_samples = y.shape[0]
 
         if x0 is None:
