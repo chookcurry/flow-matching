@@ -27,7 +27,7 @@ def generate_samples(
     p_data: Sampleable,
     num_classes: int,
     samples_per_class: int,
-    guidance_scale: float,
+    guidance_scale: float | None,
     device: device,
     seed: int | None = None,
 ) -> Tuple[Dict[int, Tensor], Dict[int, Tensor]]:

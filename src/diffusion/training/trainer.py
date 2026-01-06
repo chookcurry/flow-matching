@@ -26,7 +26,7 @@ class Trainer(ABC):
         device: torch.device,
         lr: float = 1e-3,
         validate: bool = True,
-        val_batch_size: int = 500,
+        val_batch_size: int | None = None,
         patience: int | None = 5,
         run: Run | None = None,
         plot_path: str | None = None,
@@ -74,7 +74,7 @@ class Trainer(ABC):
             self.model.eval()
 
             # validate
-            val_loss = self.get_val_loss(val_batch_size, device)
+            val_loss = self.get_val_loss(val_batch_size or batch_size, device)
 
             # update when val loss improves
             current_val_loss = float(val_loss.item())
@@ -125,7 +125,6 @@ class Trainer(ABC):
         pass
 
     @abstractmethod
-    @torch.no_grad()
     def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
         pass
 

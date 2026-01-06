@@ -34,6 +34,7 @@ class ClassifierTrainer(Trainer):
 
         return loss
 
+    @torch.no_grad()
     def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
         x, y = self.val_data.sample(batch_size)
         assert y is not None

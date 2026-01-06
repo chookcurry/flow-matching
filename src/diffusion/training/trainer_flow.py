@@ -29,6 +29,7 @@ class FlowTrainer(Trainer):
     def get_train_loss(self, batch_size: int, device: torch.device) -> Tensor:
         return self._get_loss(self.path, batch_size, device)
 
+    @torch.no_grad()
     def get_val_loss(self, batch_size: int, device: torch.device) -> Tensor:
         return self._get_loss(self.val_path, batch_size, device)
 

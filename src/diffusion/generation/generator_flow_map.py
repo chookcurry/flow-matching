@@ -30,43 +30,43 @@ class FlowMapGenerator(Generator):
         self,
         y: Tensor,
         x0: Tensor | None = None,
-        guidance_scale: float | None = None,  # w > 1.0 enhances class attributes
+        guidance_scale: float | None = None,
     ) -> Tensor:
         self.backbone.eval()
-
         num_samples = y.shape[0]
 
         if x0 is None:
-            # Initialize from base distribution [cite: 110, 131]
             x0, _ = self.path.p_simple.sample(num_samples)
             x0 = x0.to(self.device)
 
-        # Discretization points for multistep generation [cite: 136, 233]
+        # Create time steps
         ts = torch.linspace(0, 1, self.num_timesteps + 1).to(self.device)
-
-        # Create null labels for the unconditional pass
         y_null = torch.full_like(y, self.null_class)
 
         xt = x0
 
         with torch.no_grad():
             for i in range(self.num_timesteps):
+                # Broadcast s and t to batch size
                 s = ts[i].view(1, 1, 1, 1).expand(num_samples, -1, -1, -1)
                 t = ts[i + 1].view(1, 1, 1, 1).expand(num_samples, -1, -1, -1)
 
+                # Calculate the step size (t - s)
+                dt = t - s
+
                 if guidance_scale is None or guidance_scale == 1.0:
-                    # Simple conditional forward pass [cite: 118, 412]
-                    xt = self.backbone(xt, s, t, y)
+                    # Model predicts 'v', we calculate x + dt * v
+                    v_pred = self.backbone(xt, s, t, y)
+                    xt = xt + dt * v_pred
                 else:
-                    # Classifier-Free Guidance Logic
-                    # 1. Conditional prediction X(x, s, t, y)
-                    x_cond = self.backbone(xt, s, t, y)
+                    # CFG on the velocity field v, NOT the position
+                    v_cond = self.backbone(xt, s, t, y)
+                    v_uncond = self.backbone(xt, s, t, y_null)
 
-                    # 2. Unconditional prediction X(x, s, t, null)
-                    x_uncond = self.backbone(xt, s, t, y_null)
+                    # Extrapolate velocity
+                    v_cfg = v_uncond + guidance_scale * (v_cond - v_uncond)
 
-                    # 3. Linear extrapolation [cite: 35, 397, 413]
-                    # xt = x_uncond + w * (x_cond - x_uncond)
-                    xt = x_uncond + guidance_scale * (x_cond - x_uncond)
+                    # Apply step
+                    xt = xt + dt * v_cfg
 
         return xt

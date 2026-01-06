@@ -1,5 +1,4 @@
 import torch
-import torch.autograd as autograd
 from torch import Tensor, nn
 
 from diffusion.flows.prob_paths import CondProbPath
@@ -34,47 +33,52 @@ class FMMTrainer(Trainer):
     def _get_loss(
         self, path: CondProbPath, batch_size: int, device: torch.device
     ) -> Tensor:
-        # Step 1: Sample x, y from p_data [cite: 226]
+        # 1. Sample Data & Times
         batch_x, batch_y = path.p_data.sample(batch_size)
         assert batch_y is not None
         batch_x, batch_y = batch_x.to(device), batch_y.to(device)
 
-        # Step 2: Set each label to null class with probability eta
         mask = torch.rand(batch_size, device=device) < self.y_drop_prob
         batch_y[mask] = self.null_class
 
-        # Step 3: Sample s, t and compute interpolant I_t and its velocity dot_I_t [cite: 226]
         s, t = self._sample_times(batch_size, device)
-        t.requires_grad_(True)  # Required for partial derivative w.r.t t [cite: 163]
 
-        # Get interpolant I_t and its time derivative dot_I_t [cite: 226, 227]
-        # In this framework, dot_I_t is the target for the map's partial derivative
+        # 2. Compute Interpolant targets (I_t and dot_I_t)
         batch_xt = path.sample_cond_path(batch_x, t, batch_y)
         dot_I_t = path.cond_vf(batch_xt, batch_x, t)
 
-        # 1. Inner Map: Map I_t at time t back to time s [cite: 227]
-        # Your backbone.forward must be: forward(x, t_start, t_end, y)
-        z_s = self.model(batch_xt, t, s, batch_y)
+        # Helper for Ansatz: X = x + (t-s)v
+        def apply_flow_map(x_in, s_in, t_in, y_in):
+            v_pred = self.model(x_in, s_in, t_in, y_in)
+            return x_in + (t_in - s_in) * v_pred
 
-        # 2. Outer Map: Map z_s at time s forward to time t [cite: 227]
-        X_composed = self.model(z_s, s, t, batch_y)
+        # 3. Inner Map (Inversion) - z_s
+        # We assume z_s is fixed (constant) for the partial derivative calculation.
+        # We detach it so we don't backprop through the inversion step for the velocity loss.
+        z_s = apply_flow_map(batch_xt, t, s, batch_y).detach()
 
-        # 3. Compute partial derivative w.r.t. t [cite: 227]
-        # Using autograd to find d/dt of the composed map output
-        v_pred = autograd.grad(
-            outputs=X_composed,
-            inputs=t,
-            grad_outputs=torch.ones_like(X_composed),
-            create_graph=True,
-            retain_graph=True,
-            only_inputs=True,
-        )[0]
+        # 4. Finite Difference Approximation for dX/dt
+        # We perturb 't' slightly to approximate the partial derivative.
+        # This keeps tensors in shape (B, C, H, W) and avoids collapsing spatial info.
+        eps = 1e-4
+        t_plus = t + eps
+        t_minus = t - eps
 
-        # 4. Final FMM Loss (Proposition 3.11) [cite: 222]
-        # Term A: Velocity Matching (Lagrangian signal)
-        loss_vel = torch.mean((v_pred - dot_I_t) ** 2)
-        # Term B: Invertibility/Identity (Reconstruction signal)
-        loss_id = torch.mean((X_composed - batch_xt) ** 2)
+        # We must apply the FULL ansatz for both perturbed times to correctly
+        # capture the derivative of the (t-s) term as well as the network changes.
+        X_plus = apply_flow_map(z_s, s, t_plus, batch_y)
+        X_minus = apply_flow_map(z_s, s, t_minus, batch_y)
+
+        # Central difference formula: f'(x) ≈ (f(x+e) - f(x-e)) / 2e
+        v_dt_approx = (X_plus - X_minus) / (2 * eps)
+
+        # 5. Compute Map at actual 't' for Identity Loss
+        X_center = apply_flow_map(z_s, s, t, batch_y)
+
+        # 6. Loss Calculation
+        # v_dt_approx is (B, C, H, W). The subtraction is per-pixel.
+        loss_vel = torch.mean((v_dt_approx - dot_I_t) ** 2)
+        loss_id = torch.mean((X_center - batch_xt) ** 2)
 
         return loss_vel + loss_id
 
@@ -91,7 +95,7 @@ class FMMTrainer(Trainer):
             delta = 1.0 / self.K
             # Sample t such that |t-s| <= delta
             offsets = (torch.rand_like(s) * 2 - 1) * delta
-            t = torch.clamp(s + offsets, 0.0, 1.0)
+            t = torch.clamp(s + offsets, 0.0, 1.0 - 1e-5)
         else:
             # Global training on [0, 1]^2
             t = torch.rand(batch_size, 1, 1, 1, device=device)
